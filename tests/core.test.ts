@@ -14,6 +14,9 @@ describe('csv', () => {
   it('detects semicolon files and strips a BOM', () => {
     expect(parseCsv('﻿q;mark\nQ1;3,5\n')).toEqual([['q', 'mark'], ['Q1', '3,5']]);
   });
+  it('detects tab-separated files', () => {
+    expect(parseCsv('q\tmark\nQ1\t3\n')).toEqual([['q', 'mark'], ['Q1', '3']]);
+  });
   it('round-trips through toCsv', () => {
     const rows = [['a', 'b,c', 'd"e']];
     expect(parseCsv(toCsv(rows))).toEqual(rows);
@@ -31,6 +34,11 @@ describe('column mapping', () => {
     expect(r.skipped).toBe(2);
     expect(r.rows[1].mark).toBe(2.5);
     expect(r.rows[1].marker).toBeUndefined();
+  });
+  it('uses the highest mark seen for a question when there is no max-mark column', () => {
+    const t = parseCsv('question,id,answer,mark\nQ,a,x,2\nQ,b,y,4\nR,c,z,1\n');
+    const r = applyMapping(t, { ...guessMapping(t[0]), studentId: 1 });
+    expect(r.rows.map((x) => x.maxMark)).toEqual([4, 4, 1]);
   });
   it('reports missing required columns', () => {
     const m = { ...guessMapping(table[0]), answer: -1 };

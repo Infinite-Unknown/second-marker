@@ -727,7 +727,7 @@ th.num {
   line-height: 40px;
   letter-spacing: -0.025em;
   font-weight: 650;
-  max-width: 24ch;
+  max-width: 34ch;
 }
 
 .finding h1 .n {
@@ -739,7 +739,7 @@ th.num {
 }
 
 .tabs {
-  margin-top: var(--s-6);
+  margin-top: var(--s-5);
   display: flex;
   gap: var(--s-1);
   border-bottom: 1px solid var(--rule);
@@ -920,7 +920,7 @@ input[type='range'] {
 }
 
 .pair {
-  margin-top: var(--s-6);
+  margin-top: var(--s-5);
   display: grid;
   grid-template-columns: minmax(0, 1fr) 132px minmax(0, 1fr);
   border-top: 1px solid var(--form);
@@ -970,10 +970,7 @@ input[type='range'] {
 }
 
 .w.diff {
-  background: var(--form-wash);
-  box-shadow: 0 0 0 2px var(--form-wash);
-  border-radius: 2px;
-  color: #7c2416;
+  color: var(--ink);
 }
 
 .rail {
@@ -1058,8 +1055,7 @@ input[type='range'] {
   color: var(--ink-3);
 }
 
-.key-same,
-.key-diff {
+.key-same {
   display: inline-flex;
   align-items: center;
   gap: var(--s-1);
@@ -1073,13 +1069,6 @@ input[type='range'] {
   opacity: 0.55;
 }
 
-.key-diff::before {
-  content: '';
-  width: 14px;
-  height: 10px;
-  background: var(--form-wash);
-  border-radius: 2px;
-}
 
 .others {
   margin-top: var(--s-5);
@@ -1108,8 +1097,8 @@ input[type='range'] {
 }
 
 .decide {
-  margin-top: var(--s-6);
-  padding-top: var(--s-5);
+  margin-top: var(--s-5);
+  padding-top: var(--s-4);
   border-top: 1px solid var(--rule);
   display: flex;
   flex-wrap: wrap;
@@ -1558,6 +1547,16 @@ input[type='range'] {
   .topbar {
     padding: var(--s-4) var(--s-4) var(--s-3);
   }
+  .hide-sm {
+    display: none;
+  }
+  .tab {
+    padding: var(--s-3);
+  }
+  .tab::after {
+    left: var(--s-3);
+    right: var(--s-3);
+  }
   .stage {
     padding: 0 var(--s-4) var(--s-7);
   }
@@ -1642,14 +1641,7 @@ input[type='range'] {
     border: 0;
     border-top: 1px solid var(--form);
     border-bottom: 1px solid var(--form);
-    grid-template-columns: auto auto;
-    justify-content: center;
-    align-items: center;
-    column-gap: var(--s-5);
     padding: var(--s-3);
-  }
-  .rail > .label {
-    grid-column: 1 / -1;
   }
   .scales {
     grid-template-columns: auto;

@@ -85,10 +85,11 @@ export function isFlagged(v: Verdict): boolean {
 
 export function scorePair(p: { gap: number; similarity: number; verdict: Verdict; highToLow: NliScores; lowToHigh: NliScores }) {
   // Mutual implication is stronger evidence than one-way implication, so it ranks first.
+  // Confidence is squared so a confident 3-mark gap outranks a doubtful 5-mark one.
   const meaning = p.verdict === 'same'
     ? Math.min(p.highToLow.entailment, p.lowToHigh.entailment)
     : 0.5 * p.lowToHigh.entailment;
-  return p.gap * p.similarity * meaning;
+  return p.gap * p.similarity * meaning * meaning;
 }
 
 /** Pairs that share an answer are one case: union-find over flagged pairs, per question. */

@@ -1,0 +1,11 @@
+@font-face { font-family: 'Archivo'; src: url('/font/archivo.woff2') format('woff2'); font-weight: 100 900; font-stretch: 62% 125%; }
+:root { --desk:#e5e8e3; --sheet:#fff; --ink:#1f2023; --ink-2:#4a4d52; --ink-3:#5c6066; --form:#e86a55; --form-text:#b23a26; --scan:#2146d8; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--desk); font-family: Archivo, system-ui, sans-serif; color: var(--ink); display: grid; place-items: center; font-variant-numeric: tabular-nums; }
+.sheet { position: relative; width: 1240px; background: var(--sheet); border-radius: 3px; box-shadow: 0 1px 1px rgb(31 32 35 / .06), 0 10px 30px -14px rgb(31 32 35 / .22); padding: 64px 72px 64px 104px; }
+.sheet::before { content: ''; position: absolute; left: 24px; top: 64px; bottom: 64px; width: 12px; background: repeating-linear-gradient(to bottom, var(--ink) 0 5px, transparent 5px 28px); }
+.label { font-size: 15px; font-weight: 600; font-stretch: 75%; letter-spacing: .06em; text-transform: uppercase; color: var(--form-text); }
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } }
+.rise > * { animation: rise 520ms cubic-bezier(.23,1,.32,1) both; }
+.rise > *:nth-child(2) { animation-delay: 160ms; } .rise > *:nth-child(3) { animation-delay: 320ms; } .rise > *:nth-child(4) { animation-delay: 480ms; } .rise > *:nth-child(5) { animation-delay: 640ms; }

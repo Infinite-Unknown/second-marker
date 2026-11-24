@@ -1,0 +1,22 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="card.css"><style>
+h1 { font-size: 56px; line-height: 60px; letter-spacing: -.03em; margin: 14px 0 0; font-weight: 700; }
+.flow { margin-top: 40px; display: grid; grid-template-columns: repeat(5, 1fr); border: 1px solid var(--form); border-radius: 3px; }
+.flow div { padding: 14px 16px 18px; border-right: 1px solid var(--form); font-size: 17px; line-height: 24px; }
+.flow div:last-child { border-right: 0; }
+.flow b { display: block; font-weight: 650; margin-top: 4px; }
+.limits { margin-top: 32px; font-size: 19px; line-height: 29px; color: var(--ink-2); max-width: 70ch; }
+.links { margin-top: 28px; display: flex; gap: 40px; font-size: 19px; }
+.links span { color: var(--scan); }
+</style></head><body><div class="sheet rise">
+<span class="label">Second Marker</span>
+<h1>Finds equal answers with unequal marks.<br>A person decides every case.</h1>
+<div class="flow">
+<div><span class="label">1 · Marksheet</span><b>CSV, in the tab</b>nothing uploaded</div>
+<div><span class="label">2 · Wording</span><b>all-MiniLM-L6-v2</b>similar answers</div>
+<div><span class="label">3 · Meaning</span><b>deberta-base-long-nli</b>implies both ways?</div>
+<div><span class="label">4 · Review</span><b>Re-mark or stand</b>with a reason</div>
+<div><span class="label">5 · Report</span><b>Anonymous codes</b>CSV and print</div>
+</div>
+<p class="limits">Runs in a Web Worker with Transformers.js and ONNX Runtime Web. Short English answers only. First run downloads about 255 MB of models once. Flags are evidence for a person to review, not verdicts.</p>
+<div class="links"><span>github.com/Infinite-Unknown/second-marker</span><span>infinite-unknown.github.io/second-marker</span></div>
+</div></body></html>

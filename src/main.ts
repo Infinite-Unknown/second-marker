@@ -224,7 +224,7 @@ worker.onmessage = (ev: MessageEvent<WorkerMessage>) => {
       break;
     case 'result':
       if (m.id !== state.requestId) return;
-      state.lastRun = { ms: m.ms, threads: m.threads };
+      if (state.screen === 'reading') state.lastRun = { ms: m.ms, threads: m.threads };
       onAnalysis(m.analysis);
       break;
     case 'error':
@@ -343,7 +343,7 @@ function startOver() {
 /* ------------------------------------------------------------------ render */
 
 function shell(inner: string) {
-  const local = `<span class="local-chip">${icons.lock}<span>Runs in this tab. Nothing is uploaded.</span></span>`;
+  const local = `<span class="local-chip">${icons.lock}<span>Runs in this tab<span class="hide-sm">. Nothing is uploaded</span>.</span></span>`;
   return `
     <header class="topbar">
       <button class="wordmark" data-act="home" aria-label="Second Marker, start over">${icons.mark}<span>Second Marker</span></button>
@@ -665,7 +665,8 @@ function caseHtml(c: Case, k: number) {
   const others = c.rows.filter((r) => r !== top.high && r !== top.low);
   const who = (r: AnswerRow) =>
     `<div class="who"><strong>${esc(r.studentId)}</strong><span class="meta">${r.marker ? esc(r.marker) + ' · ' : ''}${fmtMark(r.mark)} / ${fmtMark(r.maxMark)}</span></div>`;
-  const meaning = top.verdict === 'same' ? 'Same meaning' : 'Lower mark, says at least as much';
+  const minE = Math.min(top.highToLow.entailment, top.lowToHigh.entailment);
+  const meaning = top.verdict === 'same' ? (minE >= 0.8 ? 'Same meaning' : 'Probably the same meaning') : 'Lower mark, says at least as much';
   return `<div class="case-body" id="casebody">
     <div class="case-head">
       <span class="label"><span class="pos">Case ${k + 1} of ${a.cases.length}</span> · ${plural(c.rows.length, 'answer')}</span>
@@ -690,19 +691,9 @@ function caseHtml(c: Case, k: number) {
     </div>
     <div class="evidence">
       <div><span class="label">Wording · ${top.similarity.toFixed(2)}</span><p>${esc(wordingLabel(top.similarity)[0].toUpperCase() + wordingLabel(top.similarity).slice(1))}, found by the first model.</p>
-        <div class="key"><span class="key-same">in both answers</span><span class="key-diff">in one answer only</span></div></div>
+        <div class="key"><span class="key-same">underlined words appear in both answers</span></div></div>
       <div><span class="label">Meaning · ${esc(meaning)}</span><p>${esc(verdictText(top))}</p></div>
     </div>
-    ${
-      others.length
-        ? `<div class="others"><span class="label">Also in this case</span><ul>${others
-            .map((r) => {
-              const row = a.rows[r];
-              return `<li><b>${esc(row.studentId)}</b><span>${fmtMark(row.mark)} / ${fmtMark(row.maxMark)}</span><span>${esc(row.answer)}</span></li>`;
-            })
-            .join('')}</ul></div>`
-        : ''
-    }
     <div class="decide" role="group" aria-label="Decision for this case">
       <button class="btn choice choice--remark" data-decide="remark" aria-pressed="${d?.decision === 'remark'}"><span class="bubble"></span><span class="txt">Needs re-mark</span> <kbd>R</kbd></button>
       <button class="btn choice choice--right" data-decide="right" aria-pressed="${d?.decision === 'right'}"><span class="bubble"></span><span class="txt">Marks stand</span> <kbd>A</kbd></button>
@@ -712,6 +703,16 @@ function caseHtml(c: Case, k: number) {
     ${
       d?.decision === 'right'
         ? `<label class="reason"><span class="label">Why the marks differ (optional, goes in the report)</span><input id="reason" type="text" maxlength="240" value="${esc(d.reason ?? '')}" placeholder="e.g. the higher answer was marked against the full rubric" /></label>`
+        : ''
+    }
+    ${
+      others.length
+        ? `<div class="others"><span class="label">Also in this case</span><ul>${others
+            .map((r) => {
+              const row = a.rows[r];
+              return `<li><b>${esc(row.studentId)}</b><span>${fmtMark(row.mark)} / ${fmtMark(row.maxMark)}</span><span>${esc(row.answer)}</span></li>`;
+            })
+            .join('')}</ul></div>`
         : ''
     }
   </div>`;
@@ -883,7 +884,7 @@ function viewReport() {
     <article class="report">
       <h2>Moderation report</h2>
       <p class="meta settings-line">${esc(state.fileName)}${state.sample ? ' (illustrative sample class, not real student work)' : ''} · generated ${esc(date)} · students shown as anonymous codes</p>
-      <p style="margin-top:var(--s-4)">${plural(a.cases.length, 'case')} of equal answers with unequal marks: ${counts.remark} need re-marking, ${counts.right} marks stand, ${counts.none} not reviewed.</p>
+      <p style="margin-top:var(--s-4)">${plural(a.cases.length, 'case')} of equal answers with unequal marks: ${counts.remark} ${counts.remark === 1 ? 'needs' : 'need'} re-marking, ${counts.right} ${counts.right === 1 ? 'keeps its marks' : 'keep their marks'}, ${counts.none} not reviewed.</p>
       <p class="meta" style="margin-top:var(--s-2)">Settings: wording similarity ≥ ${state.settings.minSimilarity.toFixed(2)}, mark gap ≥ ${Math.round(state.settings.minGapFraction * 100)}% of max, entailment ≥ ${state.settings.entailThreshold}, contradiction ≥ ${state.settings.contradictionThreshold}. Models: ${esc(MODELS.embedding.source)}, ${esc(MODELS.nli.source)}. Flags are evidence for a person to review, not findings about any student.</p>
       <h3>Cases</h3>
       ${caseRows || '<p class="meta">No cases at these settings.</p>'}

@@ -107,7 +107,7 @@ try {
   await page.keyboard.press('a');
   await page.waitForTimeout(200);
   check('A records "Marks stand" and asks for a reason', (await page.locator('#reason').count()) === 1);
-  await page.locator('#reason').fill('Higher answer named both operations; rubric gives credit for that.');
+  await page.locator('#reason').fill('Discussed with Marker A: keep marks, note for the exam board.');
   await page.locator('#reason').press('Enter');
   await page.waitForTimeout(500);
   await shot('05-decisions.png');
@@ -147,7 +147,7 @@ try {
   await download.saveAs(csvPath);
   const csv = readFileSync(csvPath, 'utf8');
   check('report CSV uses anonymous codes, not student ids', /S-\d\d/.test(csv) && !/S10\d\d/.test(csv), csv.split('\r\n')[1]);
-  check('decisions survive a sensitivity change and reach the report CSV', csv.includes('Needs re-mark') && csv.includes('Marks stand') && csv.includes('rubric gives credit'));
+  check('decisions survive a sensitivity change and reach the report CSV', csv.includes('Needs re-mark') && csv.includes('Marks stand') && csv.includes('note for the exam board'));
 
   // Mobile layout of a case.
   await page.setViewportSize({ width: 375, height: 812 });
@@ -169,8 +169,11 @@ try {
   const offlineHead = (await page.locator('.finding h1').innerText()).replace(/\s+/g, ' ');
   check('runs offline from cached models', offlineHead === headline, `${offlineHead} (${((Date.now() - t1) / 1000).toFixed(1)}s)`);
   await page.waitForTimeout(2300);
+  // The app's own files come from the service worker cache when the page is reloaded offline.
+  await page.reload();
+  const reloaded = await page.getByRole('heading', { name: 'Same answer. Different mark.' }).waitFor({ timeout: 15000 }).then(() => true, () => false);
+  check('page reloads offline after one visit', reloaded);
   await context.setOffline(false);
-  await page.getByRole('tab', { name: /Cases/ }).click();
 
   // Score the in-browser pipeline on every labelled file, loaded through the file picker like a user would.
   for (const tf of ['eval/sample-truth.json', 'eval/heldout-truth.json', 'eval/heldout2-truth.json']) {
