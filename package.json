@@ -1,0 +1,27 @@
+{
+  "name": "second-marker",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Finds students who wrote the same answer and got different marks. Runs in the browser; student work never leaves the machine.",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "eval": "tsx scripts/eval.ts",
+    "e2e": "tsx scripts/e2e.ts"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "4.3.2"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "playwright": "1.65.0",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3",
+    "vite": "8.1.7",
+    "vitest": "5.1.0"
+  }
+}

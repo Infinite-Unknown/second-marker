@@ -1,0 +1,67 @@
+question,student_id,answer,mark,max_mark,marker
+What is the difference between a stack and a queue?,S1001,"A stack is last in first out, the last item added is the first one removed. A queue is first in first out, items leave in the order they arrived.",5,5,Marker A
+What is the difference between a stack and a queue?,S1002,"Stack uses LIFO so the newest element is removed first, while a queue uses FIFO so the oldest element is removed first.",2,5,Marker B
+What is the difference between a stack and a queue?,S1003,A stack is LIFO and a queue is FIFO.,3,5,Marker A
+What is the difference between a stack and a queue?,S1004,A stack is FIFO and a queue is LIFO.,0,5,Marker B
+What is the difference between a stack and a queue?,S1005,Both store elements in order.,1,5,Marker A
+What is the difference between a stack and a queue?,S1006,"In a stack you push and pop from the top only. In a queue you enqueue at the back and dequeue from the front, so the first element in is the first out.",5,5,Marker A
+What is the difference between a stack and a queue?,S1007,"With a stack, push and pop both happen at the top. With a queue, elements are added at the rear and removed from the front, so whatever went in first comes out first.",2,5,Marker B
+What is the difference between a stack and a queue?,S1008,"Stack: last in first out, like a pile of plates. Queue: first in first out, like a line at a shop.",5,5,Marker A
+What is the difference between a stack and a queue?,S1009,A stack removes the most recently added item first. A queue removes the item that has been waiting longest.,5,5,Marker B
+What is the difference between a stack and a queue?,S1010,A stack is a data structure.,0,5,Marker A
+What is the difference between a stack and a queue?,S1011,"Stacks are used for recursion and undo, queues are used for scheduling.",2,5,Marker B
+What is the difference between a stack and a queue?,S1012,a stack is last in first out.,2,5,Marker A
+What is the difference between a stack and a queue?,S1013,"A queue is first in first out but a stack is last in first out, like plates piled up.",2,5,Marker B
+What is the difference between a stack and a queue?,S1014,Stack is faster than queue.,0,5,Marker A
+What is the difference between a stack and a queue?,S1015,"A stack removes the newest item first, a queue removes the oldest item first.",5,5,Marker B
+What is the difference between a stack and a queue?,S1016,"Stack is LIFO, queue is FIFO, both can be implemented with arrays or linked lists.",4,5,Marker A
+What is the difference between a stack and a queue?,S1017,A stack lets you access any element by index while a queue does not.,0,5,Marker B
+What is the difference between a stack and a queue?,S1018,"In a stack the first element added is the first removed, and in a queue the last element added is removed first.",0,5,Marker A
+"What is the time complexity of binary search, and why?",S1001,"O(log n), because each comparison halves the part of the array that is left to search.",5,5,Marker A
+"What is the time complexity of binary search, and why?",S1002,It is O(log n) since every step cuts the remaining search space in half.,2,5,Marker B
+"What is the time complexity of binary search, and why?",S1003,O(n) because it checks every element.,0,5,Marker A
+"What is the time complexity of binary search, and why?",S1004,O(log n).,2,5,Marker B
+"What is the time complexity of binary search, and why?",S1005,Binary search is O(n log n) because it sorts first.,0,5,Marker A
+"What is the time complexity of binary search, and why?",S1006,"Logarithmic time, O(log n). After each comparison with the middle element, half of the remaining elements can be discarded.",5,5,Marker A
+"What is the time complexity of binary search, and why?",S1007,It runs in O(log n): comparing with the middle item lets you throw away half of what is left each time.,3,5,Marker B
+"What is the time complexity of binary search, and why?",S1008,O(log n) in the worst case and O(1) in the best case when the middle element is the target.,4,5,Marker A
+"What is the time complexity of binary search, and why?",S1009,"O(n), because in the worst case binary search has to look at every element one by one.",0,5,Marker B
+"What is the time complexity of binary search, and why?",S1010,It is O(n) since it does not cut the search space in half.,0,5,Marker A
+"What is the time complexity of binary search, and why?",S1011,Very fast because the list is sorted.,1,5,Marker B
+"What is the time complexity of binary search, and why?",S1012,"log n, it halves the array each time",4,5,Marker A
+"What is the time complexity of binary search, and why?",S1013,Complexity is O(log n) because the array is split into two halves at each step and only one half is searched.,5,5,Marker B
+"What is the time complexity of binary search, and why?",S1014,O(1),0,5,Marker A
+"What is the time complexity of binary search, and why?",S1015,"O(log2 n) because the search range halves with every iteration, so for 1024 items it needs about 10 steps.",5,5,Marker B
+"What is the time complexity of binary search, and why?",S1016,"It is quick, about log n steps.",3,5,Marker A
+Why must the array be sorted before running binary search?,S1001,Binary search compares the target with the middle element and decides which half to discard. That decision is only correct if the elements are in order.,5,5,Marker A
+Why must the array be sorted before running binary search?,S1002,"Because it relies on order: after comparing with the middle value it throws away one half, which only works if the array is sorted.",5,5,Marker B
+Why must the array be sorted before running binary search?,S1003,So that it is faster.,1,5,Marker A
+Why must the array be sorted before running binary search?,S1004,"If the array is not sorted, binary search cannot know which half the target is in, so it might discard the half that contains it.",5,5,Marker B
+Why must the array be sorted before running binary search?,S1005,"Without sorting, the algorithm cannot tell which half could hold the target and may throw away the half that has it.",2,5,Marker A
+Why must the array be sorted before running binary search?,S1006,Because binary search only works on sorted data.,2,5,Marker A
+Why must the array be sorted before running binary search?,S1007,"It doesn't have to be sorted, binary search works on any array.",0,5,Marker B
+Why must the array be sorted before running binary search?,S1008,"Binary search does not need the array to be sorted, it just checks the middle element first.",0,5,Marker A
+Why must the array be sorted before running binary search?,S1009,"The middle element comparison tells you whether to go left or right, which is only meaningful when the values are ordered.",5,5,Marker B
+Why must the array be sorted before running binary search?,S1010,"The comparison with the middle tells you to search left or right, and this only makes sense if the values are sorted.",2,5,Marker A
+Why must the array be sorted before running binary search?,S1011,So duplicates are removed.,0,5,Marker B
+Why must the array be sorted before running binary search?,S1012,It must be sorted so that all smaller values are on one side of the middle and all larger values are on the other side.,4,5,Marker A
+Why must the array be sorted before running binary search?,S1013,Because linear search is slow.,0,5,Marker B
+Why must the array be sorted before running binary search?,S1014,"Sorted order means everything left of the middle is smaller and everything right is bigger, so half can be ignored safely.",5,5,Marker A
+Why must the array be sorted before running binary search?,S1015,"Sorted order means everything left of the middle is bigger and everything right is smaller, so you can search both halves.",0,5,Marker B
+Why must the array be sorted before running binary search?,S1016,"Binary search splits the array, it needs order.",3,5,Marker A
+What is a hash collision and how can it be handled?,S1001,"A collision is when two different keys hash to the same index. It can be handled with chaining, where each slot stores a linked list of entries.",5,5,Marker A
+What is a hash collision and how can it be handled?,S1002,When two different keys get the same hash index. Handle it by chaining: keep a linked list at each bucket.,5,5,Marker B
+What is a hash collision and how can it be handled?,S1003,"When two keys produce the same index in the table. You can fix it with separate chaining, storing a list in each slot.",2,5,Marker A
+What is a hash collision and how can it be handled?,S1004,"A collision is when two keys map to the same slot. Open addressing handles it by probing for the next free slot, for example linear probing.",5,5,Marker B
+What is a hash collision and how can it be handled?,S1005,Two keys landing in the same slot is a collision; with linear probing you just move on to the next empty slot.,3,5,Marker A
+What is a hash collision and how can it be handled?,S1006,A collision is when the hash table is full.,1,5,Marker A
+What is a hash collision and how can it be handled?,S1007,When the same key is inserted twice.,0,5,Marker B
+What is a hash collision and how can it be handled?,S1008,"A collision is when two different keys hash to different indexes, it is handled by deleting one key.",0,5,Marker A
+What is a hash collision and how can it be handled?,S1009,"Two keys share one index. Fix with chaining or open addressing, and keep the load factor low by resizing the table.",5,5,Marker B
+What is a hash collision and how can it be handled?,S1010,It is when 2 keys hash to the same place. Use chaining.,3,5,Marker A
+What is a hash collision and how can it be handled?,S1011,A collision is an error that crashes the program.,0,5,Marker B
+What is a hash collision and how can it be handled?,S1012,"When two different keys have the same hash value. Handling: chaining, linear probing, quadratic probing or double hashing.",5,5,Marker A
+What is a hash collision and how can it be handled?,S1013,Collisions happen when keys clash.,1,5,Marker B
+What is a hash collision and how can it be handled?,S1014,"Same index for two keys. It can be handled with chaining or with open addressing, and resizing the table when the load factor gets high also helps.",2,5,Marker A
+What is a hash collision and how can it be handled?,S1015,"Hash collision means two different values hash to the same bucket, you can use a linked list in each bucket to store both.",4,5,Marker B
+What is a hash collision and how can it be handled?,S1016,"When two keys hash to the same index. It cannot be handled, one value is always lost.",0,5,Marker A

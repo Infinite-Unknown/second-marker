@@ -1,0 +1,26 @@
+{
+  "file": "public/sample-class.csv",
+  "note": "Illustrative sample class written for this project. Not real student work. Planted = answers deliberately given a mark that disagrees with an equivalent answer to the same question. Traps = pairs written to look alike while saying the opposite.",
+  "planted": [
+    ["What is the difference between a stack and a queue?", "S1002"],
+    ["What is the difference between a stack and a queue?", "S1007"],
+    ["What is the difference between a stack and a queue?", "S1013"],
+    ["What is the time complexity of binary search, and why?", "S1002"],
+    ["What is the time complexity of binary search, and why?", "S1007"],
+    ["Why must the array be sorted before running binary search?", "S1005"],
+    ["Why must the array be sorted before running binary search?", "S1010"],
+    ["What is a hash collision and how can it be handled?", "S1003"],
+    ["What is a hash collision and how can it be handled?", "S1005"],
+    ["What is a hash collision and how can it be handled?", "S1014"]
+  ],
+  "traps": [
+    ["What is the difference between a stack and a queue?", "S1003", "S1004"],
+    ["What is the difference between a stack and a queue?", "S1015", "S1018"],
+    ["What is the difference between a stack and a queue?", "S1009", "S1018"],
+    ["What is the time complexity of binary search, and why?", "S1002", "S1010"],
+    ["Why must the array be sorted before running binary search?", "S1006", "S1008"],
+    ["Why must the array be sorted before running binary search?", "S1014", "S1015"],
+    ["What is a hash collision and how can it be handled?", "S1001", "S1008"],
+    ["What is a hash collision and how can it be handled?", "S1010", "S1016"]
+  ]
+}

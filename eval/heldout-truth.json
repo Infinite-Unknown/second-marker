@@ -1,0 +1,62 @@
+{
+  "file": "eval/heldout-class.csv",
+  "note": "Held-out set, written before any run of the pipeline on it and never used to choose thresholds. Not real student work.",
+  "planted": [
+    [
+      "What is the purpose of a primary key in a database table?",
+      "H202"
+    ],
+    [
+      "What is the purpose of a primary key in a database table?",
+      "H208"
+    ],
+    [
+      "What is the difference between TCP and UDP?",
+      "H302"
+    ],
+    [
+      "What is the difference between TCP and UDP?",
+      "H307"
+    ],
+    [
+      "What is encapsulation in object-oriented programming?",
+      "H402"
+    ],
+    [
+      "What is encapsulation in object-oriented programming?",
+      "H408"
+    ]
+  ],
+  "traps": [
+    [
+      "What is the purpose of a primary key in a database table?",
+      "H201",
+      "H204"
+    ],
+    [
+      "What is the purpose of a primary key in a database table?",
+      "H212",
+      "H211"
+    ],
+    [
+      "What is the difference between TCP and UDP?",
+      "H301",
+      "H303"
+    ],
+    [
+      "What is the difference between TCP and UDP?",
+      "H305",
+      "H310"
+    ],
+    [
+      "What is encapsulation in object-oriented programming?",
+      "H409",
+      "H410"
+    ],
+    [
+      "What is encapsulation in object-oriented programming?",
+      "H404",
+      "H405"
+    ]
+  ]
+}
