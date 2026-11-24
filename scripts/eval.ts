@@ -19,7 +19,8 @@ const root = resolve(import.meta.dirname, '..');
 const dump = process.argv.includes('--dump');
 const sets = [
   { name: 'Sample class (thresholds chosen on this set)', truth: 'eval/sample-truth.json' },
-  { name: 'Held-out set (never used for tuning)', truth: 'eval/heldout-truth.json' },
+  { name: 'Held-out set 1 (not used for thresholds; seen while comparing models)', truth: 'eval/heldout-truth.json' },
+  { name: 'Held-out set 2 (written after every choice was made)', truth: 'eval/heldout2-truth.json' },
 ];
 
 T.env.cacheDir = resolve(root, '.cache/models');

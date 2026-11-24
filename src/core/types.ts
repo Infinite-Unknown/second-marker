@@ -22,9 +22,9 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  minSimilarity: 0.6,
+  minSimilarity: 0.55,
   minGapFraction: 0.3,
-  entailThreshold: 0.6,
+  entailThreshold: 0.5,
   contradictionThreshold: 0.5,
 };
 

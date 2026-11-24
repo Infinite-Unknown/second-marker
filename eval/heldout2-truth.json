@@ -1,0 +1,62 @@
+{
+  "file": "eval/heldout2-class.csv",
+  "note": "Second held-out set, written after the model and thresholds were chosen and run once for the final numbers. Not real student work.",
+  "planted": [
+    [
+      "What is a deadlock?",
+      "K502"
+    ],
+    [
+      "What is a deadlock?",
+      "K506"
+    ],
+    [
+      "What does a DNS server do?",
+      "K602"
+    ],
+    [
+      "What does a DNS server do?",
+      "K606"
+    ],
+    [
+      "Why do we normalise a relational database?",
+      "K702"
+    ],
+    [
+      "Why do we normalise a relational database?",
+      "K706"
+    ]
+  ],
+  "traps": [
+    [
+      "What is a deadlock?",
+      "K501",
+      "K504"
+    ],
+    [
+      "What is a deadlock?",
+      "K512",
+      "K509"
+    ],
+    [
+      "What does a DNS server do?",
+      "K601",
+      "K603"
+    ],
+    [
+      "What does a DNS server do?",
+      "K611",
+      "K610"
+    ],
+    [
+      "Why do we normalise a relational database?",
+      "K701",
+      "K704"
+    ],
+    [
+      "Why do we normalise a relational database?",
+      "K705",
+      "K709"
+    ]
+  ]
+}

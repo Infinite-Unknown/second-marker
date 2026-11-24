@@ -1,6 +1,6 @@
 {
   "file": "eval/heldout-class.csv",
-  "note": "Held-out set, written before any run of the pipeline on it and never used to choose thresholds. Not real student work.",
+  "note": "Held-out set, written before any run of the pipeline on it and never used to set thresholds. Its scores were visible while comparing NLI models (see BUILD notes in README), so heldout2 is the untouched set.",
   "planted": [
     [
       "What is the purpose of a primary key in a database table?",

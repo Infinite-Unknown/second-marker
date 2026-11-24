@@ -12,3 +12,7 @@ playwright-report/
 BRIEF.md
 BUILD_LOG.md
 SUBMIT_CHECKLIST.md
+PRODUCT.md
+.impeccable/
+assets/.report-check.csv
+assets/.e2e-failure.png

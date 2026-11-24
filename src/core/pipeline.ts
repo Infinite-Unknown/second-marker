@@ -84,9 +84,10 @@ export function isFlagged(v: Verdict): boolean {
 }
 
 export function scorePair(p: { gap: number; similarity: number; verdict: Verdict; highToLow: NliScores; lowToHigh: NliScores }) {
+  // Mutual implication is stronger evidence than one-way implication, so it ranks first.
   const meaning = p.verdict === 'same'
-    ? (p.highToLow.entailment + p.lowToHigh.entailment) / 2
-    : p.lowToHigh.entailment;
+    ? Math.min(p.highToLow.entailment, p.lowToHigh.entailment)
+    : 0.5 * p.lowToHigh.entailment;
   return p.gap * p.similarity * meaning;
 }
 
@@ -156,14 +157,25 @@ export async function analyse(rows: AnswerRow[], engine: Engine, settings: Setti
   onProgress?.('embed', texts.length, texts.length);
 
   const { candidates, compared } = findCandidates(rows, embeddings, settings);
-  const nliInputs: [string, string][] = [];
-  for (const c of candidates) {
-    nliInputs.push([rows[c.high].answer, rows[c.low].answer]);
-    nliInputs.push([rows[c.low].answer, rows[c.high].answer]);
-  }
-  onProgress?.('nli', 0, candidates.length);
-  const scores = await engine.nli(nliInputs, (d) => onProgress?.('nli', Math.floor(d / 2), candidates.length));
-  onProgress?.('nli', candidates.length, candidates.length);
+  // Pass 1: higher-marked answer as premise. Pass 2 (the reverse) is skipped when pass 1 already
+  // found a contradiction, because that alone makes the verdict "opposite".
+  let total = candidates.length * 2;
+  onProgress?.('nli', 0, total);
+  const forward = await engine.nli(
+    candidates.map((c) => [rows[c.high].answer, rows[c.low].answer] as [string, string]),
+    (d) => onProgress?.('nli', d, total),
+  );
+  const needReverse = candidates.map((_, k) => forward[k].contradiction < settings.contradictionThreshold);
+  const reverseIdx = candidates.map((_, k) => k).filter((k) => needReverse[k]);
+  total = candidates.length + reverseIdx.length;
+  const reverseScores = await engine.nli(
+    reverseIdx.map((k) => [rows[candidates[k].low].answer, rows[candidates[k].high].answer] as [string, string]),
+    (d) => onProgress?.('nli', candidates.length + d, total),
+  );
+  onProgress?.('nli', total, total);
+  const reverse = new Map(reverseIdx.map((k, i) => [k, reverseScores[i]]));
+  const notRun: NliScores = { entailment: 0, contradiction: 0, neutral: 1 };
+  const scores = candidates.flatMap((_, k) => [forward[k], reverse.get(k) ?? notRun]);
 
   const scored: PairResult[] = candidates.map((c, k) => {
     const highToLow = scores[2 * k];

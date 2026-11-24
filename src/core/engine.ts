@@ -11,8 +11,8 @@ export const MODELS = {
     purpose: 'Sentence embeddings: finds answers that are worded alike.',
   },
   nli: {
-    id: 'onnx-community/ModernBERT-base-nli-ONNX',
-    source: 'tasksource/ModernBERT-base-nli',
+    id: 'onnx-community/deberta-base-long-nli',
+    source: 'tasksource/deberta-base-long-nli',
     licence: 'Apache-2.0',
     dtype: 'q8',
     purpose: 'Natural-language inference: checks the two answers actually say the same thing.',
@@ -72,12 +72,15 @@ export async function createEngine(T: Transformers, opts: EngineOptions = {}): P
       return out;
     },
     async nli(pairs, onProgress) {
-      const out: NliScores[] = [];
-      for (let i = 0; i < pairs.length; i += batchSize) {
-        const batch = pairs.slice(i, i + batchSize);
+      // Batch pairs of similar length together so little time is spent on padding.
+      const order = pairs.map((_, i) => i).sort((x, y) => pairs[x][0].length + pairs[x][1].length - (pairs[y][0].length + pairs[y][1].length));
+      const out: NliScores[] = new Array(pairs.length);
+      let done = 0;
+      for (let i = 0; i < order.length; i += batchSize) {
+        const idx = order.slice(i, i + batchSize);
         const inputs = tokenizer(
-          batch.map((p) => p[0]),
-          { text_pair: batch.map((p) => p[1]), padding: true, truncation: true },
+          idx.map((k) => pairs[k][0]),
+          { text_pair: idx.map((k) => pairs[k][1]), padding: true, truncation: true },
         );
         const { logits } = await nliModel(inputs);
         const [n, k] = logits.dims as number[];
@@ -86,9 +89,10 @@ export async function createEngine(T: Transformers, opts: EngineOptions = {}): P
           const probs = softmax(data.slice(r * k, (r + 1) * k));
           const s: NliScores = { contradiction: 0, entailment: 0, neutral: 0 };
           probs.forEach((pr, j) => (s[labelAt(j)] += pr));
-          out.push(s);
+          out[idx[r]] = s;
         }
-        onProgress?.(out.length);
+        done += n;
+        onProgress?.(done);
       }
       return out;
     },
