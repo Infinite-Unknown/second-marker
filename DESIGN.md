@@ -30,10 +30,11 @@ Raised by the directions it was weighed against:
 | `--ink-3` | `#5C6066` | Tertiary text, captions (6.3:1 on white, 5.1:1 on the desk) |
 | `--form` | `#E86A55` | Drop-out red: printed form structure (rules, bubble outlines, timing ticks). Never used for small text |
 | `--form-text` | `#B23A26` | Form labels and "needs re-mark" text (5.9:1 on white) |
-| `--form-wash` | `#FCEDEA` | Highlight behind words that differ between two answers |
+| `--form-wash` | `#FCEDEA` | Fill of a pressed "Needs re-mark", error lines |
 | `--scan` | `#2146D8` | Reserved: active case, scanner light, focus ring, live state (7.2:1 on white) |
-| `--scan-wash` | `#E8EDFD` | Scanner light wash, words both answers share |
+| `--scan-wash` | `#E8EDFD` | Scanner light wash, text selection, drop-zone hover |
 | `--stand` | `#2F6B4F` | "Marks stand" decision (6.3:1 on white) |
+| `--stand-wash` | `#E6F0EA` | Fill of a pressed "Marks stand" |
 | `--rule` | `#D9DBD6` | Hairline seams |
 
 ### Type
@@ -95,3 +96,10 @@ Reduced motion (`prefers-reduced-motion: reduce`): no sweep, no slides, no brack
 - Loading: the reading screen shows model download bytes on first run, then answer counts; never a bare spinner.
 - Error: errors name the problem and the recovery (missing column, unreadable mark, model download failed, offline on first run).
 - No cases: the finding sentence says so, shows how many pairs were compared and set aside, and offers to loosen the thresholds.
+
+## Changes after the first build review
+
+- Words only one answer contains were first washed in red; with paraphrases that painted most of the text red and read as "wrong". Now only shared words are marked (a cobalt underline), and the rest stays plain ink.
+- The decision row moved above "Also in this case" so the primary action sits next to the evidence.
+- The finding sentence widened to two lines at desktop width so the first case and its decision row fit higher on the page.
+- At narrow widths the topbar note shortens to "Runs in this tab." and the mark rail stacks its two scales above the gap label.
