@@ -119,7 +119,7 @@ src/main.ts      the interface
 src/styles.css   the visual system (see DESIGN.md)
 public/          sample class and service worker
 eval/            held-out sets and the truth files for every set
-scripts/         eval, model comparison, end-to-end test, demo video recorder
+scripts/         eval, model comparison, end-to-end test, demo video recorder and editor
 tests/           unit tests
 ```
 

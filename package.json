@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "eval": "tsx scripts/eval.ts",
-    "e2e": "tsx scripts/e2e.ts"
+    "e2e": "tsx scripts/e2e.ts",
+    "video": "tsx scripts/video/record.ts && tsx scripts/video/edit.ts"
   },
   "dependencies": {
     "@fontsource-variable/archivo": "5.3.0",

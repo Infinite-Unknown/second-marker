@@ -1,15 +1,28 @@
 /**
- * Records the demo video from the real built app: a scripted browser session is captured frame by
- * frame, cut into scenes, given a spoken narration (macOS `say`) and burned-in captions, and joined
- * into assets/demo.mp4. Title, terminal and end cards are separate HTML pages in scripts/video/.
+ * Demo video, step 1 of 2: records the real built app. scripts/video/edit.ts turns the recording into the film.
  *
- *   npm run build && npx tsx scripts/video/record.ts
+ * A scripted Chromium session (1440x810 CSS px at device scale 2) is captured frame by frame through the
+ * DevTools screencast, at 2880x1620 and up to 60 fps. Against the same clock the script logs:
+ *   - scenes, each with its narration, one sentence per audio file (Kokoro, voice af_heart), so camera moves
+ *     can be cued to the sentence they belong to;
+ *   - camera targets, taken from the real on-screen rectangle of the element in focus (the editor eases a
+ *     crop of the 2x capture between them);
+ *   - scenes that wait on the models, which the editor shows faster than real time and labels with the factor.
+ * The cursor is drawn into the page and moved along eased paths, so it is part of the capture.
+ * Output: .cache/video/timeline.json plus the frames.
+ *
+ *   npm run build && npx tsx scripts/video/record.ts && npx tsx scripts/video/edit.ts
+ *
+ * Narration needs a local Kokoro install: KOKORO_PY (python with kokoro-onnx) and KOKORO_TTS (a tts.py taking
+ * "text out.wav --voice af_heart"). Lines are cached in .cache/tts by their text.
  */
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { createReadStream, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, join, resolve } from 'node:path';
-import { chromium, type Page } from 'playwright';
+import { promisify } from 'node:util';
+import { chromium, type Locator } from 'playwright';
 
 const root = resolve(import.meta.dirname, '../..');
 const work = resolve(root, '.cache/video');
@@ -17,8 +30,78 @@ const frames = join(work, 'frames');
 rmSync(work, { recursive: true, force: true });
 mkdirSync(frames, { recursive: true });
 const W = 1440;
-const H = 900;
-const FPS = 30;
+const H = 810;
+const SCALE = 2;
+const MAX_Z = 2.1;
+
+/* ---------- narration ---------- */
+const KOKORO_PY = process.env.KOKORO_PY ?? resolve(root, '../../tools/kokoro/.venv/bin/python');
+const KOKORO_TTS = process.env.KOKORO_TTS ?? resolve(root, '../../scripts/tts.py');
+const ttsDir = resolve(root, '.cache/tts');
+mkdirSync(ttsDir, { recursive: true });
+const run = promisify(execFile);
+const probe = (f: string) => Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', f]).toString().trim());
+interface Line { text: string; file: string; dur: number }
+const lines = new Map<string, Promise<Line>>();
+let queue: Promise<unknown> = Promise.resolve();
+/** One sentence of narration, synthesised once (cached by text), one synthesis at a time. */
+function voice(text: string): Promise<Line> {
+  let p = lines.get(text);
+  if (p) return p;
+  const file = join(ttsDir, createHash('sha1').update('af_heart\n' + text).digest('hex').slice(0, 16) + '.wav');
+  p = (queue = queue.then(async () => {
+    if (!existsSync(file)) await run(KOKORO_PY, ['-I', KOKORO_TTS, text, file, '--voice', 'af_heart']);
+    return { text, file, dur: probe(file) };
+  })) as Promise<Line>;
+  lines.set(text, p);
+  return p;
+}
+const GAP = 0.12; // pause between sentences, on top of the short silence each file ends with
+
+/* ---------- numbers for the narration, from the real evaluation output ---------- */
+const evalOut = readFileSync(resolve(root, '.cache/eval-out.txt'), 'utf8');
+function setStats(title: RegExp) {
+  const block = evalOut.replace(/^== /, '').split('\n== ').find((b) => title.test(b)) ?? '';
+  const g = (re: RegExp) => (block.match(re) ?? []).slice(1).map(Number);
+  const [found, planted] = g(/found\):\s+(\d+)\/(\d+)/);
+  const [good, flagged] = g(/planted answer\):\s+(\d+)\/(\d+)/);
+  const [, baseFlagged] = g(/precision (\d+)\/(\d+)/);
+  if ([found, planted, good, flagged, baseFlagged].some((x) => !Number.isFinite(x))) throw new Error('eval output not understood: ' + title);
+  return { found, planted, good, flagged, baseFlagged };
+}
+const words = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty'];
+const tens = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+const say = (k: number) => (k < 21 ? words[k] : k < 100 ? tens[Math.floor(k / 10)] + (k % 10 ? '-' + words[k % 10] : '') : String(k));
+const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
+const sample = setStats(/^Sample class/);
+const held = setStats(/^Held-out set 2/);
+const flagLine = (x: ReturnType<typeof setStats>) => (x.good === x.flagged ? 'and every flag was correct' : `and ${say(x.good)} of its ${say(x.flagged)} flags were correct`);
+
+/* The script. Sentences that depend on what the app shows are written at the moment they are known. */
+const script = {
+  title: ['Two students wrote the same answer.', 'One got five out of five. The other got two.', 'Second Marker finds these cases, before the marks go to the exam board.'],
+  landing: ['It runs entirely in your browser.', 'Drop in a marked spreadsheet, or try the sample class: sixty-six short answers to four data-structures questions, written for this demo.'],
+  columns: ['Columns are matched from the header, and you can change any of them.', 'Answers are only ever compared with answers to the same question.'],
+  reading: [
+    'On the first run, two models download once.',
+    'The first, all Mini L M, turns every answer into a vector, to find answers worded alike.',
+    'The second, a DeBERTa model trained for natural language inference, checks whether each answer implies the other.',
+    'Nothing is uploaded, and the page lists every request it makes.',
+  ],
+  decide: ['A person decides every case.', 'This one needs re-marking.', 'In the next case, the moderator keeps the marks, and records why.'],
+  offline: ['Once the models are cached, it works with the network off.', 'Here the browser is offline, and the class is checked again.'],
+  report: ['The report swaps every student ID for an anonymous code, and lists each case with its decision.', 'It downloads as a spreadsheet for the exam board.', 'The tool never changes a mark.'],
+  measured: [
+    'Does it work?',
+    'The same pipeline runs on labelled classes with planted mis-marks.',
+    `On the sample class, it found ${say(sample.found)} of ${say(sample.planted)}, ${flagLine(sample)}.`,
+    `On a held-out class, written after every setting was chosen, it found ${say(held.found)} of ${say(held.planted)}, ${flagLine(held)}.`,
+    `Wording similarity alone would have flagged ${say(held.baseFlagged)} pairs there.`,
+  ],
+  end: ['Second Marker runs two open models in your browser: all Mini L M for wording, and DeBERTa for meaning.', 'It handles short English answers, and its flags are evidence for a person, never verdicts.'],
+};
+console.log('synthesising narration');
+await Promise.all(Object.values(script).flat().map(voice));
 
 /* ---------- static server for dist/ under a sub-path, like GitHub Pages ---------- */
 const types: Record<string, string> = {
@@ -42,26 +125,29 @@ const server = createServer((req, res) => {
 await new Promise<void>((r) => server.listen(4318, r));
 const base = 'http://localhost:4318/second-marker/';
 
-/* ---------- browser with a visible cursor drawn into the page (headless has none) ---------- */
-const browser = await chromium.launch({ args: ['--use-mock-keychain', '--password-store=basic'] });
-const context = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1, acceptDownloads: true });
-await context.addInitScript(() => {
-  addEventListener('DOMContentLoaded', () => {
-    const c = document.createElement('div');
-    c.id = '__cursor';
-    c.innerHTML = '<svg width="22" height="26" viewBox="0 0 22 26"><path d="M2 2l0 19 5-5 3.5 8 3-1.4-3.5-7.6 7 0z" fill="#1f2023" stroke="#fff" stroke-width="1.5"/></svg>';
-    Object.assign(c.style, { position: 'fixed', left: '0', top: '0', zIndex: '99999', pointerEvents: 'none', transform: 'translate(-100px,-100px)' });
-    document.body.append(c);
-    addEventListener('mousemove', (e: MouseEvent) => (c.style.transform = `translate(${e.clientX - 2}px,${e.clientY - 2}px)`), true);
-    addEventListener('mousedown', (e: MouseEvent) => {
-      const r = document.createElement('div');
-      Object.assign(r.style, { position: 'fixed', left: e.clientX - 18 + 'px', top: e.clientY - 18 + 'px', width: '36px', height: '36px', borderRadius: '50%', border: '2px solid #2146d8', zIndex: '99998', pointerEvents: 'none', transition: 'transform 400ms ease-out, opacity 400ms ease-out' });
-      document.body.append(r);
-      requestAnimationFrame(() => Object.assign(r.style, { transform: 'scale(1.6)', opacity: '0' }));
-      setTimeout(() => r.remove(), 450);
-    }, true);
-  });
-});
+/* ---------- browser; the cursor is drawn into the page (headless has none) ---------- */
+const cursorScript = `addEventListener('DOMContentLoaded', () => {
+  const c = document.createElement('div');
+  c.innerHTML = '<svg width="24" height="30" viewBox="0 0 24 30"><path d="M3 2.6v21.6l5.4-5.2 3.7 8.5 4-1.8-3.7-8.3h7.4z" fill="#1f2023" stroke="#fff" stroke-width="1.7" stroke-linejoin="round"/></svg>';
+  c.style.cssText = 'position:fixed;left:0;top:0;z-index:2147483647;pointer-events:none;opacity:0;transform-origin:3px 3px;transition:opacity 180ms;filter:drop-shadow(0 1px 1.5px rgb(0 0 0 / .3))';
+  document.body.append(c);
+  let x = 0, y = 0, s = 1;
+  const put = () => { c.style.transform = 'translate(' + (x - 3) + 'px,' + (y - 3) + 'px) scale(' + s + ')'; };
+  addEventListener('mousemove', (e) => { x = e.clientX; y = e.clientY; c.style.opacity = '1'; put(); }, true);
+  addEventListener('mousedown', (e) => {
+    s = 0.84; put();
+    const r = document.createElement('div');
+    r.style.cssText = 'position:fixed;left:' + (e.clientX - 20) + 'px;top:' + (e.clientY - 20) + 'px;width:40px;height:40px;border-radius:50%;border:2px solid #2146d8;background:rgb(33 70 216 / .12);z-index:2147483646;pointer-events:none;transform:scale(.3);opacity:1;transition:transform 520ms cubic-bezier(.23,1,.32,1),opacity 520ms ease-out';
+    document.body.append(r);
+    requestAnimationFrame(() => requestAnimationFrame(() => { r.style.transform = 'scale(1.5)'; r.style.opacity = '0'; }));
+    setTimeout(() => r.remove(), 600);
+  }, true);
+  addEventListener('mouseup', () => { s = 1; put(); }, true);
+});`;
+// --force-device-scale-factor makes the screencast deliver device pixels (2880x1620), not CSS pixels.
+const browser = await chromium.launch({ args: ['--use-mock-keychain', '--password-store=basic', `--force-device-scale-factor=${SCALE}`] });
+const context = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: SCALE, acceptDownloads: true });
+await context.addInitScript(cursorScript);
 const page = await context.newPage();
 page.on('pageerror', (e) => console.error('page error', e));
 
@@ -75,272 +161,358 @@ cdp.on('Page.screencastFrame', (async (f: { data: string; sessionId: number; met
   captured.push({ t: f.metadata.timestamp, file });
   await cdp.send('Page.screencastFrameAck', { sessionId: f.sessionId }).catch(() => {});
 }) as never);
-await cdp.send('Page.startScreencast', { format: 'jpeg', quality: 92, maxWidth: W, maxHeight: H, everyNthFrame: 1 });
+await cdp.send('Page.startScreencast', { format: 'jpeg', quality: 94, maxWidth: W * SCALE, maxHeight: H * SCALE, everyNthFrame: 1 });
 const now = () => Date.now() / 1000;
-// Keep frames flowing while the page is static (the screencast only sends changes).
-const ticker = setInterval(() => page.evaluate(() => document.body.style.setProperty('--tick', String(Math.random()))).catch(() => {}), 100);
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, Math.max(0, ms)));
 
-interface Scene { name: string; start: number; end: number; say: string; caption?: string; speed?: number; aiff: string; voice: number }
+/* ---------- scenes ---------- */
+interface Scene {
+  name: string; start: number; end: number; lead: number; fit: boolean;
+  caption?: { k: string; t: string }; lines: Line[]; offsets: number[]; total: number;
+}
 const scenes: Scene[] = [];
 let open: Scene | null = null;
-const dur = (f: string) => Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', f]).toString().trim());
-/** Starts a scene. The narration is synthesised first so the scene can be held until it is spoken. */
-function scene(name: string, say: string, opts: { caption?: string; speed?: number } = {}) {
-  // The scene starts before the narration is synthesised, so an animation already running is not cut.
+/** Starts a scene. fit: the footage is a wait, shown faster so it fits the narration. */
+async function scene(name: string, text: string[], opts: { caption?: { k: string; t: string }; fit?: boolean; lead?: number } = {}) {
   const start = now();
-  const aiff = join(work, `v-${name}.aiff`);
-  execFileSync('say', ['-v', 'Samantha', '-r', '178', '-o', aiff, say]);
-  open = { name, start, end: 0, say, ...opts, aiff, voice: dur(aiff) };
+  const prev = scenes.at(-1);
+  if (prev && start - prev.end > 0.1) cam.cut(start); // a cut: the editor dips through the desk colour
+  const ls = await Promise.all(text.map(voice));
+  const offsets: number[] = [];
+  let t = 0;
+  for (const l of ls) { offsets.push(t); t += l.dur + GAP; }
+  open = { name, start, end: 0, lead: opts.lead ?? 0.35, fit: !!opts.fit, caption: opts.caption, lines: ls, offsets, total: t - GAP };
   scenes.push(open);
 }
-/**
- * Holds the current scene until its narration fits, then ends it (footage after this is not used).
- * hold: false ends it now; the assembler fits the footage to the narration instead.
- */
-async function done({ hold = true } = {}) {
-  if (!open) return;
-  const need = (open.voice + 0.9) * (open.speed ?? 1);
-  const left = need - (now() - open.start);
-  if (hold && left > 0) await page.waitForTimeout(left * 1000);
-  open.end = now();
+/** Waits until sentence i of the current scene is about to be heard. */
+async function cue(i: number, early = 0.25) {
+  const s = open!;
+  await sleep((s.start + s.lead + s.offsets[i] - early - now()) * 1000);
+}
+/** Waits until the current scene's narration has (nearly) finished. */
+async function settle(before = 0.2) {
+  const s = open!;
+  await sleep((s.start + s.lead + s.total - before - now()) * 1000);
+}
+/** Ends the scene; by default first holds until its narration is over, plus a short breath. */
+async function done({ hold = true, tail = 0.6 } = {}) {
+  const s = open!;
+  if (hold && !s.fit) await sleep((s.start + s.lead + s.total + tail - now()) * 1000);
+  s.end = now();
   open = null;
 }
-const wait = (ms: number) => page.waitForTimeout(ms);
-async function moveTo(p: Page, selector: string, steps = 18) {
-  const box = await p.locator(selector).first().boundingBox();
-  if (!box) throw new Error('not visible: ' + selector);
-  await p.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps });
+
+/* ---------- camera: targets from real element rectangles, in CSS px of the viewport ---------- */
+interface Shot { t: number; d: number; cx: number; cy: number; z: number }
+const shots: Shot[] = [];
+const cam = {
+  z: 1,
+  wide(d = 0.8) { shots.push({ t: now(), d, cx: W / 2, cy: H / 2, z: 1 }); this.z = 1; return sleep(d * 1000); },
+  cut(t: number) { shots.push({ t, d: 0, cx: W / 2, cy: H / 2, z: 1 }); this.z = 1; },
+  to(r: Rect, { z, pad = 1.18, d = 1.0, dy = 0, left = false }: CamOpts = {}) {
+    const fit = Math.min(W / (r.w * pad), H / (r.h * pad));
+    const zz = Math.max(1, Math.min(MAX_Z, z ?? fit));
+    // left: keep the target's left edge in frame (for a line of text in a wide block)
+    const cx = left ? r.x - 32 + W / zz / 2 : r.x + r.w / 2;
+    shots.push({ t: now(), d, cx, cy: r.y + r.h / 2 + dy, z: zz });
+    this.z = zz;
+    return sleep(d * 1000);
+  },
+};
+interface Rect { x: number; y: number; w: number; h: number }
+interface CamOpts { z?: number; pad?: number; d?: number; dy?: number; left?: boolean }
+/** A selector or locator (its box), or { text } (the box of the text inside it, for wide blocks with short text). */
+type Target = string | Locator | { text: Locator };
+const loc = (t: string | Locator) => (typeof t === 'string' ? page.locator(t).first() : t);
+async function rectOf(targets: Target[]): Promise<Rect> {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const t of targets) {
+    const b = typeof t === 'object' && 'text' in t
+      ? await t.text.evaluate((el) => {
+          const r = document.createRange();
+          r.selectNodeContents(el);
+          const q = r.getBoundingClientRect();
+          return { x: q.x, y: q.y, width: q.width, height: q.height };
+        }, null, { timeout: 5000 })
+      : await loc(t).boundingBox({ timeout: 5000 });
+    if (!b) throw new Error('not visible: ' + String(t));
+    x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y); x1 = Math.max(x1, b.x + b.width); y1 = Math.max(y1, b.y + b.height);
+  }
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
-async function click(selector: string) {
-  await moveTo(page, selector);
-  await wait(250);
-  await page.locator(selector).first().click();
+async function scrollToY(y: number, ms = 800) {
+  await page.evaluate(`new Promise((done) => {
+    const s = scrollY, d = Math.max(0, Math.min(${y}, document.documentElement.scrollHeight - innerHeight)) - s, t0 = performance.now();
+    if (Math.abs(d) < 2) return done();
+    const step = (now) => {
+      const p = Math.min(1, (now - t0) / ${ms});
+      const e = p < .5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+      scrollTo(0, s + d * e);
+      p < 1 ? requestAnimationFrame(step) : done();
+    };
+    requestAnimationFrame(step);
+  })`);
+}
+/**
+ * Puts the camera on the targets. If they are not fully in view, the camera pulls back, the page scrolls,
+ * and the camera pushes in again (it never scrolls the page under a zoomed camera).
+ */
+async function focus(targets: Target[], opts: CamOpts & { top?: number } = {}) {
+  let r = await rectOf(targets);
+  const top = opts.top ?? 90;
+  if (r.y < top || r.y + r.h > H - 24) {
+    if (cam.z > 1.01) await cam.wide(0.7);
+    const y = await page.evaluate(() => scrollY);
+    const want = r.h > H - top - 40 ? y + r.y - top : y + r.y + r.h / 2 - (H + top) / 2;
+    await scrollToY(want, 750);
+    await sleep(120);
+    r = await rectOf(targets);
+  }
+  await cam.to(r, opts);
 }
 
-const evalOut = readFileSync(resolve(root, '.cache/eval-out.txt'), 'utf8');
-const testOut = readFileSync(resolve(root, '.cache/test-out.txt'), 'utf8');
-// Numbers for the narration come from the real eval output shown on screen.
-function setStats(title: RegExp) {
-  const block = evalOut.replace(/^== /, '').split('\n== ').find((b) => title.test(b)) ?? '';
-  const g = (re: RegExp) => (block.match(re) ?? []).slice(1).map(Number);
-  const [found, planted] = g(/found\):\s+(\d+)\/(\d+)/);
-  const [good, flagged] = g(/planted answer\):\s+(\d+)\/(\d+)/);
-  const [, baseFlagged] = g(/precision (\d+)\/(\d+)/);
-  return { found, planted, good, flagged, baseFlagged };
+/* ---------- cursor: eased, slightly curved paths ---------- */
+let mx = W * 0.62, my = H * 0.72;
+const ease = (p: number) => (p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2);
+async function glide(x: number, y: number, ms?: number) {
+  const dx = x - mx, dy = y - my, dist = Math.hypot(dx, dy);
+  const T = ms ?? Math.min(1150, 420 + dist * 0.6);
+  const steps = Math.max(2, Math.round(T / 16));
+  const bow = Math.min(50, dist * 0.08) * (dx > 0 ? 1 : -1);
+  const qx = mx + dx / 2 - (dy / (dist || 1)) * bow, qy = my + dy / 2 + (dx / (dist || 1)) * bow;
+  const sx = mx, sy = my, t0 = Date.now();
+  for (let i = 1; i <= steps; i++) {
+    const p = ease(i / steps);
+    const px = (1 - p) * (1 - p) * sx + 2 * (1 - p) * p * qx + p * p * x;
+    const py = (1 - p) * (1 - p) * sy + 2 * (1 - p) * p * qy + p * p * y;
+    await page.mouse.move(px, py);
+    await sleep(t0 + (i * T) / steps - Date.now());
+  }
+  mx = x; my = y;
 }
-const words = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty'];
-const say = (k: number) => words[k] ?? String(k);
-const sample = setStats(/^Sample class/);
-const held = setStats(/^Held-out set 2/);
-const flagLine = (x: ReturnType<typeof setStats>) => (x.good === x.flagged ? 'and every flag was correct' : `and ${say(x.good)} of its ${say(x.flagged)} flags were correct`);
+async function pointAt(t: string | Locator, ms?: number, fx = 0.5, fy = 0.5) {
+  const b = await loc(t).boundingBox();
+  if (!b) throw new Error('not visible: ' + String(t));
+  await glide(b.x + b.width * fx, b.y + b.height * fy, ms);
+}
+async function press(t: string | Locator, ms?: number) {
+  await pointAt(t, ms);
+  await sleep(140);
+  await page.mouse.down();
+  await sleep(90);
+  await page.mouse.up();
+}
+const showCursor = () => page.mouse.move(mx, my);
 
 try {
-  /* 1. Title card */
+  /* 1. Title card: the hook is the result itself */
   await page.goto('http://localhost:4318/cards/title.html');
-  await wait(300);
-  scene('title', 'Two students wrote the same answer. One got full marks. The other got two out of five. Second Marker finds these cases before the marks go to the exam board.');
-  await wait(1000);
-
-  await done();
+  await page.evaluate(() => document.fonts.ready);
+  await scene('title', script.title, { lead: 0.3 });
+  await sleep(700);
+  await cue(1, 0.6);
+  await focus(['.pair'], { pad: 1.06, d: 1.1 });
+  await cue(2, 0.3);
+  await cam.wide(1.0);
+  await done({ tail: 0.4 });
 
   /* 2. Landing */
   await page.goto(base);
   await page.waitForFunction(() => self.crossOriginIsolated, null, { timeout: 15000 }).catch(() => {});
   await page.getByRole('heading', { name: 'Same answer. Different mark.' }).waitFor();
-  await page.mouse.move(700, 500);
-  await wait(400);
-  scene('landing', 'It runs in the browser. Drop in a marked spreadsheet, or try the sample class: sixty-six short answers to four data structures questions, written for this demo.', {
-    caption: 'The sample class is illustrative, not real student work.',
-  });
-  await wait(1500);
-  await moveTo(page, '#drop', 22);
-  await wait(1800);
-  await click('[data-act="sample"]');
+  await sleep(500);
+  await showCursor();
+  await scene('landing', script.landing, { caption: { k: 'Sample class', t: 'Illustrative: written for this demo, not real student work.' } });
+  await sleep(900);
+  await pointAt('#drop', 1000, 0.5, 0.62);
+  await cue(1, 0.1);
+  await focus(['.load .enter-stagger'], { pad: 1.08, d: 1.0 });
+  await pointAt('[data-act="sample"]', 900);
+  await settle(0.5);
+  await press('[data-act="sample"]', 300);
   await page.getByRole('heading', { name: 'Match the columns' }).waitFor();
-  await wait(1500);
-
-  await done();
-
-  /* 3. Columns */
-  scene('columns', 'Columns are matched from the header and can be changed. Answers are only ever compared with answers to the same question.');
-  await moveTo(page, '.fields', 20);
-  await wait(3500);
-  await click('[data-act="analyse"]');
-
-  await done();
-
-  /* 4. Reading (first run: models download) */
-  scene('reading', 'On the first run the two models download once. Every answer becomes a meaning vector, and each similar pair with different marks goes to a second model, which checks whether each answer implies the other. Nothing is uploaded. The page lists every request it makes.', {
-    caption: 'First run, including the one-time model download.',
-    speed: 2,
-  });
-  await page.locator('.finding h1').waitFor({ timeout: 600000 });
-
-  // End the sped-up scene the moment results appear, so the arrival plays at real speed in the next scene.
+  await cam.wide(0.8);
   await done({ hold: false });
 
-  /* 5. Arrival */
-  const nCases = Number(((await page.locator('.finding h1').innerText()).match(/(\d+) case/) ?? [])[1] ?? 0);
-  const marks = await page.$$eval('.scale', (els) => els.map((e) => (e.getAttribute('aria-label') ?? '').match(/Mark (\S+)/)?.[1] ?? '?'));
-  scene('arrival', `${say(nCases)[0].toUpperCase() + say(nCases).slice(1)} cases. In the first, these two answers say the same thing. One was marked ${marks[0]}, the other ${marks[1]}.`);
-  await wait(2600);
-  await page.mouse.move(820, 980 - 100, { steps: 25 });
-  await wait(3000);
+  /* 3. Columns */
+  await scene('columns', script.columns, { caption: { k: 'Columns', t: 'Matched from the header. Any of them can be changed.' } });
+  await sleep(300);
+  await focus(['.fields'], { pad: 1.12, d: 1.0 });
+  await pointAt('.fields select >> nth=2', 900);
+  await cue(1, 0.2);
+  await focus(['.preview'], { pad: 1.05, d: 1.0 });
+  await settle(0.9);
+  await focus(['[data-act="analyse"]'], { z: 1.7, d: 0.8 });
+  await press('[data-act="analyse"]', 700);
+  await done({ hold: false });
 
-  await done();
+  /* 4. Reading: first run, models download; shown faster, labelled with the real factor */
+  await scene('reading', script.reading, { fit: true, caption: { k: 'First run', t: 'Includes the one-time model download.' } });
+  await sleep(400);
+  await focus(['.stages', '#net'], { z: 1.75, d: 1.0 });
+  await page.waitForFunction(() => !document.querySelector('#st-embed')?.classList.contains('is-waiting'), null, { timeout: 600000 });
+  await focus(['#scansheet'], { pad: 1.02, d: 1.0, top: 0 }).catch(() => cam.wide());
+  await page.waitForFunction(() => !document.querySelector('#st-nli')?.classList.contains('is-waiting'), null, { timeout: 600000 });
+  await cam.wide(1.0);
+  await scrollToY(0, 700);
+  await page.locator('.finding h1').waitFor({ timeout: 600000 });
+  // End the sped-up scene the moment results appear, so the arrival plays at real speed.
+  await done({ hold: false });
 
-  /* 6. Review */
-  scene('review', 'Words the answers share are underlined. The wording score comes from the first model, the meaning check from the second. A person decides every case. This one needs re-marking. In the next, the moderator keeps the marks and records why.');
-  await page.mouse.wheel(0, 380);
-  await wait(1800);
-  await click('[data-decide="remark"]');
-  await wait(2200);
-  await page.mouse.wheel(0, 380);
-  await wait(800);
-  await click('[data-decide="right"]');
-  await wait(600);
-  await page.locator('#reason').pressSequentially('Discussed with Marker A: keep marks, note for the exam board.', { delay: 28 });
-  await wait(1200);
+  /* 5. Arrival (the signature moment) */
+  const finding = await page.locator('.finding h1').innerText();
+  const nCases = Number((finding.match(/(\d+) case/) ?? [])[1] ?? 0);
+  const marks = await page.$$eval('.case-sheet .scale', (els) => els.map((e) => (e.getAttribute('aria-label') ?? '').match(/Mark (\S+)/)?.[1] ?? '?'));
+  await scene('arrival', [`${cap(say(nCases))} cases.`, 'In the first, these two answers say the same thing.', `One was marked ${say(Number(marks[0]))}. The other, ${say(Number(marks[1]))}.`], {
+    lead: 0.5,
+    caption: { k: 'Case 1', t: `Same meaning, marked ${marks[0]} and ${marks[1]}.` },
+  });
+  await sleep(2100);
+  await cue(1, 0.2);
+  await focus(['.pair'], { pad: 1.05, d: 1.1 });
+  await cue(2, 0.1);
+  await focus(['.rail'], { z: 1.9, d: 1.0 });
+  await done({ tail: 0.5 });
 
-  await done();
+  /* 6. Evidence */
+  const meaning = (await page.locator('.evidence > div >> nth=1').innerText()).toLowerCase();
+  const evidence = ['Words the two answers share are underlined.', 'The wording score comes from the first model; the meaning check, from the second.'];
+  if (/each answer implies the other/.test(meaning)) evidence.push('Here, each answer implies the other.');
+  await scene('evidence', evidence, { caption: { k: 'Evidence', t: 'Shared words underlined. Wording from the first model, meaning from the second.' } });
+  await focus(['.answer--b blockquote'], { z: 1.9, d: 1.0 });
+  await cue(1, 0.2);
+  await focus(['.evidence'], { pad: 1.08, d: 1.0 });
+  await done({ tail: 0.4 });
 
-  /* 7. Set aside */
-  await page.mouse.wheel(0, -2000);
-  await wait(600);
-  scene('aside', 'Similar words are not the same meaning. A stack is LIFO, and a stack is FIFO, look almost identical. The meaning check finds the contradiction, so their different marks are not flagged.');
-  await click('[data-tab="aside"]');
-  await wait(800);
-  const trap = page.locator('.aside-item', { hasText: 'A stack is FIFO and a queue is LIFO.' }).first();
-  await trap.scrollIntoViewIfNeeded();
-  await page.evaluate(() => window.scrollBy(0, -160));
-  await wait(400);
-  const tb = await trap.boundingBox();
-  if (tb) await page.mouse.move(tb.x + 260, tb.y + 90, { steps: 25 });
-  await wait(6000);
+  /* 7. Decisions */
+  await scene('decide', script.decide, { caption: { k: 'Decision', t: 'A person decides every case. The tool never changes a mark.' } });
+  await focus(['[data-decide="remark"]', '[data-decide="right"]'], { z: 1.85, d: 0.9 });
+  await pointAt('[data-decide="right"]', 800);
+  await cue(1, 0.5);
+  await press('[data-decide="remark"]', 550);
+  await sleep(1300); // the bubble fills, then the next case slides in
+  await cue(2, 0.3);
+  await focus(['.case-sheet .pair', '[data-decide="right"]'], { pad: 1.04, d: 0.9 });
+  await focus(['[data-decide="remark"]', '[data-decide="right"]'], { z: 1.85, d: 0.9 });
+  await press('[data-decide="right"]', 650);
+  await page.locator('#reason').waitFor();
+  await focus(['[data-decide="remark"]', '#reason'], { pad: 1.1, d: 0.8 });
+  await page.keyboard.type('Discussed with Marker A: keep marks, note for the exam board.', { delay: 30 });
+  await done({ tail: 0.8 });
 
-  await done();
+  /* 8. Set aside: similar words, opposite meaning */
+  const trap = page.locator('.aside-item', { hasText: 'A stack is LIFO and a queue is FIFO.' }).filter({ hasText: 'A stack is FIFO and a queue is LIFO.' }).first();
+  const trap2 = page.locator('.aside-item', { hasText: 'Binary search does not need the array to be sorted' }).first();
+  await cam.wide(0.7);
+  await scrollToY(0, 700);
+  await pointAt('[data-tab="aside"]', 900);
+  await press('[data-tab="aside"]', 200);
+  await sleep(500);
+  const sim = ((await trap.locator('.label').first().innerText()).match(/Wording (\d\.\d+)/i) ?? [])[1] ?? '';
+  const simWords = sim ? sim.replace('0.', 'nought point ').replace(/(\d)(\d)$/, (_m, a, b) => `${say(+a)} ${say(+b)}`) : '';
+  const aside = ['Similar words are not the same meaning.', `"A stack is lie-foe", and "a stack is fie-foe"${simWords ? `, score ${simWords} on wording` : ', look almost identical'}.`];
+  const hasTrap2 = (await trap2.count()) > 0;
+  if (hasTrap2) aside.push('"It needs order", and "it does not need to be sorted", look alike too.');
+  aside.push('The meaning check finds the contradiction, so these are set aside, not flagged.');
+  await scene('aside', aside, { caption: { k: 'Set aside', t: 'Look-alikes that say the opposite are not flagged.' } });
+  const textOf = (item: Locator) => [{ text: item.locator('.label').first() }, { text: item.locator('.aside-pair p').nth(0) }, { text: item.locator('.aside-pair p').nth(1) }];
+  await focus(textOf(trap), { pad: 1.12, d: 1.0 });
+  await pointAt(trap.locator('.aside-why'), 900, 0.2, 0.5);
+  if (hasTrap2) {
+    await cue(2, 0.4);
+    await focus(textOf(trap2), { pad: 1.1, d: 1.0 });
+  }
+  await cue(aside.length - 1, 0.3);
+  await focus([{ text: (hasTrap2 ? trap2 : trap).locator('.aside-why') }], { z: 1.8, d: 0.9, left: true });
+  await done({ tail: 0.5 });
 
-  /* 8. Offline */
-  await page.mouse.wheel(0, -4000);
-  await click('[data-act="home"]');
-  await click('[data-act="sample"]');
+  /* 9. Offline: a second run with the network off, from the cached models */
+  await cam.wide(0.6);
+  await scrollToY(0, 600);
+  await press('[data-act="home"]', 700);
+  await press('[data-act="sample"]', 700);
   await page.getByRole('heading', { name: 'Match the columns' }).waitFor();
   await context.setOffline(true);
-  scene('offline', 'Once the models are cached, it works with the network off. Here the browser is set to offline, and the class is checked again.', {
-    caption: 'Browser set to offline mode for this run.',
-  });
-  await wait(1200);
-  await click('[data-act="analyse"]');
-  await page.locator('.finding h1').waitFor({ timeout: 120000 });
-  await wait(3500);
+  await page.locator('[data-act="analyse"]').scrollIntoViewIfNeeded();
+  await sleep(200);
+  await press('[data-act="analyse"]', 700);
+  await scene('offline', script.offline, { fit: true, caption: { k: 'Offline', t: 'Browser set to offline mode for this run.' } });
+  await sleep(300);
+  await focus(['.stages', '#net'], { z: 1.75, d: 1.0 }).catch(() => {});
+  await page.locator('.finding h1').waitFor({ timeout: 180000 });
+  await cam.wide(0.8);
+  await sleep(1600);
+  await done({ hold: false });
   await context.setOffline(false);
 
-  await done();
-
-  /* 9. Report */
-  scene('report', 'The report replaces student ids with anonymous codes, lists every case with its decision, and downloads as a spreadsheet for the exam board. The tool never changes a mark.');
-  await click('[data-tab="report"]');
-  await wait(1500);
-  await page.mouse.wheel(0, 500);
-  await wait(2500);
-  await page.mouse.wheel(0, -500);
-  await wait(600);
-  const [dl] = await Promise.all([page.waitForEvent('download'), click('[data-act="csv"]')]);
+  /* 10. Report */
+  await scene('report', script.report, { caption: { k: 'Report', t: 'Anonymous codes. A spreadsheet for the exam board.' } });
+  await pointAt('[data-tab="report"]', 900);
+  await press('[data-tab="report"]', 200);
+  await sleep(600);
+  await focus(['.report-case >> nth=0', '.report-case >> nth=1'], { pad: 1.1, d: 1.0 });
+  await cue(1, 0.6);
+  await focus(['.report-actions [data-act="csv"]'], { z: 1.85, d: 0.9 });
+  const [dl] = await Promise.all([page.waitForEvent('download'), press('.report-actions [data-act="csv"]', 700)]);
   await dl.saveAs(join(work, 'report.csv'));
-  await wait(3000);
+  await cue(2, 0.4);
+  await cam.wide(1.0);
+  await done({ tail: 0.6 });
 
-  await done();
-
-  /* 10. Measured */
-  const term = `$ npm test\n${testOut.trim()}\n\n$ npm run eval\n${evalOut.trim()}`;
+  /* 11. Measured: the real evaluation output */
   await page.goto('http://localhost:4318/cards/terminal.html');
-  await page.evaluate((t) => (document.getElementById('out')!.textContent = t), term);
-  await wait(300);
-  scene('measured', `Is it right? The same pipeline runs against labelled classes with planted mis-marks. On the sample class it found ${say(sample.found)} of ${say(sample.planted)}, ${flagLine(sample)}. On a held-out class written after every setting was chosen, it found ${say(held.found)} of ${say(held.planted)}, ${flagLine(held)}. Wording similarity alone would have flagged ${held.baseFlagged} pairs there, not ${say(held.flagged)}.`, {
-    caption: 'Real output. Browser runs score slightly differently; see the README.',
-  });
-  await page.evaluate(() => window.scrollTo(0, 0));
-  await wait(3000);
-  for (let i = 0; i < 8; i++) {
-    await page.mouse.wheel(0, 120);
-    await wait(900);
-  }
-  await wait(4000);
+  const term = `$ npm run eval\n${evalOut.trim()}`.split('\n');
+  await page.evaluate((ls) => {
+    const out = document.getElementById('out')!;
+    ls.forEach((l, i) => {
+      const s = document.createElement('span');
+      s.className = 'ln';
+      s.dataset.i = String(i);
+      s.textContent = l || ' ';
+      out.append(s);
+    });
+  }, term);
+  await page.evaluate(() => document.fonts.ready);
+  const lineAt = (re: RegExp, after = 0) => {
+    const i = term.findIndex((l, k) => k >= after && re.test(l));
+    if (i < 0) throw new Error('line not found ' + re);
+    return i;
+  };
+  const sBlock = lineAt(/^== Sample class/);
+  const hBlock = lineAt(/^== Held-out set 2/);
+  const sLines = [lineAt(/recall/, sBlock), lineAt(/precision \(flagged/, sBlock)];
+  const hLines = [lineAt(/recall/, hBlock), lineAt(/precision \(flagged/, hBlock), lineAt(/baseline/, hBlock)];
+  const ln = (i: number) => page.locator(`.ln[data-i="${i}"]`);
+  const mark = (is: number[]) => page.evaluate((xs) => {
+    document.querySelectorAll('.ln.hl').forEach((e) => e.classList.remove('hl'));
+    xs.forEach((i) => document.querySelector(`.ln[data-i="${i}"]`)!.classList.add('hl'));
+  }, is);
+  await scene('measured', script.measured, { caption: { k: 'Measured', t: 'Real output of npm run eval. Browser scores differ slightly; see the README.' } });
+  await cue(2, 0.6);
+  await mark([sBlock, ...sLines]);
+  await focus([ln(sBlock), ...sLines.map(ln)], { pad: 1.12, d: 1.0, top: 0 });
+  await cue(3, 0.6);
+  await mark([hBlock, ...hLines.slice(0, 2)]);
+  await focus([ln(hBlock), ...hLines.slice(0, 2).map(ln)], { pad: 1.12, d: 1.0, top: 0 });
+  await cue(4, 0.3);
+  await mark([hLines[2]]);
+  await focus([ln(hLines[2])], { pad: 1.06, d: 0.9, top: 0 });
+  await done({ tail: 0.4 });
 
-  await done();
-
-  /* 11. End card */
+  /* 12. End card */
   await page.goto('http://localhost:4318/cards/end.html');
-  await wait(300);
-  scene('end', 'Second Marker runs two open models in the browser: all MiniLM for wording, and a DeBERTa model trained for natural language inference, for meaning. It handles short English answers, and its flags are evidence for a person, not verdicts.');
-  await wait(6000);
-  await done();
+  await page.evaluate(() => document.fonts.ready);
+  await scene('end', script.end, { lead: 0.5 });
+  await sleep(1400);
+  await focus(['.flow'], { pad: 1.06, d: 1.1 });
+  await cue(1, 0.3);
+  await cam.wide(1.1);
+  await done({ tail: 1.6 });
 } finally {
-  clearInterval(ticker);
   await cdp.send('Page.stopScreencast').catch(() => {});
   await browser.close();
   server.close();
 }
 
-/* ---------- assemble ---------- */
-writeFileSync(join(work, 'scenes.json'), JSON.stringify(scenes, null, 2));
-// Constant frame rate video from the timestamped frames.
-const lines: string[] = [];
-for (let i = 0; i < captured.length; i++) {
-  // The screencast only sends frames on change, so the last frame lasts until the last scene ends.
-  const lastEnd = Math.max(...scenes.map((x) => x.end)) + 0.5;
-  const d = (captured[i + 1]?.t ?? Math.max(lastEnd, captured[i].t + 0.5)) - captured[i].t;
-  lines.push(`file '${captured[i].file}'`, `duration ${Math.max(0.001, d).toFixed(4)}`);
-}
-lines.push(`file '${captured[captured.length - 1].file}'`);
-writeFileSync(join(work, 'frames.txt'), lines.join('\n'));
-const t0 = captured[0].t;
-const ff = (args: string[]) => execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', ...args], { stdio: 'inherit' });
-ff(['-f', 'concat', '-safe', '0', '-i', join(work, 'frames.txt'), '-vf', `fps=${FPS},scale=${W}:${H}:flags=lanczos,format=yuv420p`, '-c:v', 'libx264', '-crf', '16', '-preset', 'medium', join(work, 'raw.mp4')]);
-
-// Caption images, rendered in the app's type.
-const cap = await chromium.launch({ args: ['--use-mock-keychain', '--password-store=basic'] });
-const cpage = await cap.newPage({ viewport: { width: W, height: 120 } });
-const server2 = createServer((_req, res) => {
-  res.writeHead(200, { 'Content-Type': 'font/woff2' });
-  createReadStream(join(root, 'node_modules/@fontsource-variable/archivo/files/archivo-latin-wdth-normal.woff2')).pipe(res);
-});
-await new Promise<void>((r) => server2.listen(4319, r));
-
-const parts: string[] = [];
-for (const [i, s] of scenes.entries()) {
-  const aiff = s.aiff;
-  const voice = s.voice;
-  // A sped-up scene (waiting on the model download) is fitted to its narration; the caption states the factor.
-  const real = s.end - s.start;
-  const speed = s.speed ? Math.max(1, real / (voice + 1.2)) : 1;
-  const footage = real / speed;
-  const length = Math.max(voice + 0.8, footage);
-  const capText = s.speed && speed > 1.05 ? `${s.caption ?? ''} Sped up ${speed.toFixed(1)}x.` : (s.caption ?? '');
-  const capPng = join(work, `c${i}.png`);
-  await cpage.setContent(`<html><head><style>
-    @font-face { font-family: A; src: url(http://localhost:4319/a.woff2) format('woff2'); font-stretch: 62% 125%; font-weight: 100 900; }
-    html,body{margin:0;background:transparent}
-    .c{position:absolute;left:50%;bottom:28px;transform:translateX(-50%);max-width:1100px;font:500 22px/30px A,system-ui;color:#fff;background:rgba(31,32,35,.86);padding:10px 20px;border-radius:4px;text-align:center}
-    .k{display:block;font-size:15px;line-height:20px;color:#f5b7ab;font-weight:600;letter-spacing:.04em;text-transform:uppercase;font-stretch:75%;margin-bottom:2px}
-  </style></head><body>${capText ? `<div class="c"><span class="k">Note</span>${capText.replace(/</g, '&lt;')}</div>` : ''}</body></html>`);
-  await cpage.waitForTimeout(150);
-  await cpage.screenshot({ path: capPng, omitBackground: true });
-  const out = join(work, `p${i}.mp4`);
-  const ss = (s.start - t0).toFixed(3);
-  const tt = (s.end - s.start).toFixed(3);
-  const vf = `setpts=(PTS-STARTPTS)/${speed},tpad=stop_mode=clone:stop_duration=${Math.max(0, length - footage + 0.1).toFixed(2)},trim=duration=${length.toFixed(2)},fps=${FPS}`;
-  ff([
-    '-ss', ss, '-t', tt, '-i', join(work, 'raw.mp4'), '-i', capPng, '-i', aiff,
-    '-filter_complex', `[0:v]${vf}[v];[v][1:v]overlay=0:${H - 120}[vo];[2:a]aresample=48000,apad,atrim=duration=${length.toFixed(2)}[a]`,
-    '-map', '[vo]', '-map', '[a]', '-c:v', 'libx264', '-crf', '16', '-preset', 'medium', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '160k', out,
-  ]);
-  parts.push(out);
-  console.log(`scene ${s.name}: footage ${footage.toFixed(1)}s, voice ${voice.toFixed(1)}s -> ${length.toFixed(1)}s`);
-}
-await cap.close();
-server2.close();
-writeFileSync(join(work, 'parts.txt'), parts.map((p) => `file '${p}'`).join('\n'));
-mkdirSync(resolve(root, 'assets'), { recursive: true });
-ff(['-f', 'concat', '-safe', '0', '-i', join(work, 'parts.txt'), '-c', 'copy', '-movflags', '+faststart', resolve(root, 'assets/demo.mp4')]);
-console.log('wrote assets/demo.mp4', dur(resolve(root, 'assets/demo.mp4')).toFixed(1), 's');
+writeFileSync(join(work, 'timeline.json'), JSON.stringify({ W, H, scale: SCALE, maxZ: MAX_Z, frames: captured, scenes, shots }, null, 1));
+console.log(`recorded ${captured.length} frames over ${(captured.at(-1)!.t - captured[0].t).toFixed(1)} s; ${scenes.length} scenes, ${shots.length} camera moves`);
