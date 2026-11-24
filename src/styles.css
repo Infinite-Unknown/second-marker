@@ -355,7 +355,7 @@ kbd {
   display: grid;
   grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
   gap: var(--s-7);
-  align-items: start;
+  align-items: stretch;
 }
 
 .load h1 {
@@ -386,8 +386,12 @@ kbd {
   max-width: 46ch;
 }
 
+/* The drop target: a printed header strip (what the file holds), then a dashed well to drop it in.
+   It stretches to the height of the copy beside it, so the sheet has no dead band. */
 .dropbox {
-  border: 1px solid var(--form);
+  display: flex;
+  flex-direction: column;
+  border: 1px dashed var(--form);
   border-radius: var(--r-sheet);
   overflow: hidden;
   transition:
@@ -396,59 +400,91 @@ kbd {
 }
 
 .form-cols {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  border-bottom: 1px solid var(--form);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--rule);
+  border-bottom: 1px solid var(--rule);
 }
 
-.form-cols > div {
-  padding: var(--s-2) var(--s-3) var(--s-3);
-  border-right: 1px solid var(--form);
-  border-bottom: 1px solid var(--form);
-  margin-bottom: -1px;
-  min-height: 56px;
-}
-
-.form-cols > div:nth-child(3n) {
-  border-right: 0;
+.form-cols > li {
+  background: var(--sheet-2);
+  padding: var(--s-2) var(--s-3);
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-1);
+  white-space: nowrap;
 }
 
 .form-cols .opt {
-  display: block;
-  margin-top: 2px;
   font-size: var(--t-xs);
   color: var(--ink-3);
 }
 
 .dropbox__inner {
+  flex: 1;
   display: grid;
   justify-items: center;
+  align-content: center;
   text-align: center;
   gap: var(--s-2);
   padding: var(--s-7) var(--s-5);
   color: var(--ink-2);
   cursor: pointer;
+  transition: background-color 160ms ease;
 }
 
 .dropbox__inner svg {
   color: var(--form);
   margin-bottom: var(--s-1);
+  transition:
+    color 160ms ease,
+    transform 200ms var(--ease-out);
 }
 
 .dropbox__inner strong {
   color: var(--ink);
-  font-size: var(--t-lg);
+  font-size: var(--t-md);
   font-weight: 600;
 }
 
-.dropbox.is-over {
+.dropbox__inner .meta {
+  max-width: 34ch;
+}
+
+.dropbox.is-over,
+.dropbox:has(input:focus-visible) {
   border-color: var(--scan);
+}
+
+.dropbox:has(input:focus-visible) {
+  outline: 2px solid var(--scan);
+  outline-offset: 2px;
+}
+
+.dropbox.is-over .dropbox__inner {
   background: var(--scan-wash);
 }
 
-.dropbox.is-over .form-cols,
-.dropbox.is-over .form-cols > div {
-  border-color: var(--scan);
+.dropbox.is-over .dropbox__inner svg {
+  color: var(--scan);
+  transform: translateY(-3px);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .dropbox:hover {
+    border-color: var(--scan);
+  }
+  .dropbox__inner:hover {
+    background: var(--scan-wash);
+  }
+  .dropbox__inner:hover svg {
+    color: var(--scan);
+    transform: translateY(-3px);
+  }
 }
 
 .load-foot {
@@ -738,6 +774,15 @@ th.num {
   margin-top: var(--s-3);
 }
 
+.finding .fact {
+  white-space: nowrap;
+}
+
+/* On the results sheet the case navigator is the timing track that matters; the printed one recedes. */
+.results::before {
+  opacity: 0.18;
+}
+
 .tabs {
   margin-top: var(--s-5);
   display: flex;
@@ -774,12 +819,30 @@ th.num {
   transition: transform 200ms var(--ease-out);
 }
 
+/* First tab's text sits on the sheet's left edge, like everything above it. */
+.tab:first-child {
+  padding-left: 0;
+}
+
+.tab:first-child::after {
+  left: 0;
+}
+
 .tab[aria-selected='true'] {
   color: var(--ink);
 }
 
 .tab[aria-selected='true']::after {
   transform: scaleX(1);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .tab:hover {
+    color: var(--ink);
+  }
+  .tick:hover:not(.is-current) {
+    transform: translateX(2px);
+  }
 }
 
 .tab .count {
@@ -1110,13 +1173,17 @@ input[type='range'] {
   flex: 1;
 }
 
+/* The two decisions are the screen's primary action: each carries its own ink. */
 .choice {
-  --btn-bd: var(--rule);
   justify-content: flex-start;
   gap: var(--s-3);
+  min-height: 48px;
+  padding-inline: var(--s-5);
 }
 
 .choice .bubble {
+  /* the fill takes the decision's ink (red or green), not the scale bubble's red */
+  color: inherit;
   transition: border-color 160ms ease;
 }
 
@@ -1139,6 +1206,7 @@ input[type='range'] {
 }
 
 .choice--remark {
+  --btn-bd: var(--form);
   color: var(--form-text);
 }
 
@@ -1147,7 +1215,17 @@ input[type='range'] {
 }
 
 .choice--right {
+  --btn-bd: var(--stand);
   color: var(--stand);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .btn.choice--remark:hover:not(:disabled) {
+    --btn-bg: var(--form-wash);
+  }
+  .btn.choice--right:hover:not(:disabled) {
+    --btn-bg: var(--stand-wash);
+  }
 }
 
 .choice--right .bubble {
@@ -1182,6 +1260,13 @@ input[type='range'] {
   border-radius: var(--r-control);
   color: var(--ink);
   max-width: 640px;
+  transition: border-color 160ms ease;
+}
+
+.reason input:focus-visible {
+  border-color: var(--scan);
+  outline-offset: 0;
+  outline-width: 1px;
 }
 
 .reason input::placeholder {
@@ -1518,13 +1603,17 @@ input[type='range'] {
 /* ================= Responsive ================= */
 
 @media (max-width: 980px) {
+  /* minmax(0, 1fr), not 1fr: nowrap labels must truncate, not widen the page. */
   .load {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--s-6);
   }
   .reading {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--s-6);
+  }
+  .dropbox__inner {
+    padding: var(--s-6) var(--s-5);
   }
   .fields {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1550,12 +1639,42 @@ input[type='range'] {
   .hide-sm {
     display: none;
   }
+  /* Four tabs do not fit at phone width: they scroll, and the right edge fades to say so. */
+  .tabs {
+    gap: 0;
+    padding-right: var(--s-5);
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - var(--s-5)), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - var(--s-5)), transparent);
+  }
   .tab {
-    padding: var(--s-3);
+    padding: var(--s-3) var(--s-2);
+  }
+  .tab:first-child {
+    padding-left: 0;
   }
   .tab::after {
-    left: var(--s-3);
-    right: var(--s-3);
+    left: var(--s-2);
+    right: var(--s-2);
+  }
+  .tab:first-child::after {
+    left: 0;
+  }
+  .preview table {
+    min-width: 640px;
+  }
+  .preview .qtable {
+    min-width: 760px;
+  }
+  .preview th:first-child,
+  .preview td:first-child {
+    min-width: 200px;
+  }
+  .tune .btn--ghost {
+    margin-left: calc(-1 * var(--s-4));
+  }
+  .row-actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
   }
   .stage {
     padding: 0 var(--s-4) var(--s-7);
@@ -1572,13 +1691,7 @@ input[type='range'] {
     gap: var(--s-4);
   }
   .form-cols {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  .form-cols > div:nth-child(3n) {
-    border-right: 1px solid var(--form);
-  }
-  .form-cols > div:nth-child(2n) {
-    border-right: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .sheet {
     padding-left: calc(var(--sheet-pad) + 18px);
@@ -1616,15 +1729,23 @@ input[type='range'] {
     position: static;
     grid-auto-flow: column;
     justify-content: start;
-    padding-top: 0;
     overflow-x: auto;
-    padding-bottom: var(--s-1);
+    /* room for the current tick's lift and ring, which overflow would otherwise clip */
+    padding: var(--s-2) var(--s-1);
+    margin-left: calc(-1 * var(--s-1));
   }
   .tick.is-current {
     transform: translateY(-2px);
   }
   .case-sheet {
-    padding-left: var(--sheet-pad);
+    padding-left: 0;
+  }
+  .case-head {
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+  .case-head .label {
+    min-width: 0;
   }
   .case-question {
     font-size: var(--t-lg);
@@ -1672,7 +1793,11 @@ input[type='range'] {
     padding: var(--s-3) 0;
   }
   .others li {
-    grid-template-columns: 64px 56px minmax(0, 1fr);
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--s-1) var(--s-3);
+  }
+  .others li > span:last-child {
+    grid-column: 1 / -1;
   }
   .decide .spacer {
     display: none;

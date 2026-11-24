@@ -367,7 +367,7 @@ function render() {
 
 function viewLoad() {
   const cols = FIELDS.map(
-    (f) => `<div><span class="label">${esc(f.label)}</span>${f.required ? '' : '<span class="opt">optional</span>'}</div>`,
+    (f) => `<li><span class="label">${esc(f.label)}</span>${f.required ? '' : '<span class="opt">optional</span>'}</li>`,
   ).join('');
   return `
   <section class="sheet enter" aria-labelledby="title">
@@ -383,7 +383,7 @@ function viewLoad() {
         ${state.error ? `<p class="error-line" role="alert">${esc(state.error)}</p>` : ''}
       </div>
       <div class="dropbox" id="drop">
-        <div class="form-cols" aria-label="Columns the file needs">${cols}</div>
+        <ul class="form-cols" aria-label="Columns the file needs">${cols}</ul>
         <label class="dropbox__inner" for="file">
           ${icons.upload}
           <strong>Drop a .csv marksheet here</strong>
@@ -543,7 +543,18 @@ function findingMeta() {
   const compared = a.questions.reduce((s, q) => s + q.comparedPairs, 0);
   const aside = a.pairs.filter((p) => p.verdict === 'opposite').length;
   const decided = a.cases.filter((c) => dec(c)).length;
-  return `${plural(a.rows.length, 'answer')} · ${plural(a.questions.length, 'question')} · ${compared.toLocaleString()} pairs compared · ${a.pairs.length} checked for meaning · ${plural(aside, 'look-alike')} set aside${n ? ` · ${decided} of ${n} decided` : ''}${state.lastRun ? ` · done in ${Math.max(1, Math.round(state.lastRun.ms / 1000))} s on this device` : ''}${state.sample ? ' · illustrative sample class' : ''}`;
+  const facts = [
+    plural(a.rows.length, 'answer'),
+    plural(a.questions.length, 'question'),
+    `${compared.toLocaleString()} pairs compared`,
+    `${a.pairs.length} checked for meaning`,
+    `${plural(aside, 'look-alike')} set aside`,
+    n ? `${decided} of ${n} decided` : '',
+    state.lastRun ? `done in ${Math.max(1, Math.round(state.lastRun.ms / 1000))} s on this device` : '',
+    state.sample ? 'illustrative sample class' : '',
+  ].filter(Boolean);
+  // Each fact stays whole; lines break between facts, never inside one.
+  return facts.map((f) => `<span class="fact">${esc(f)}</span>`).join(' · ');
 }
 
 function tabsHtml() {
@@ -563,7 +574,7 @@ function renderResultsParts() {
   const h = document.getElementById('finding');
   if (!h) return render();
   h.innerHTML = findingHtml();
-  document.getElementById('findingmeta')!.textContent = findingMeta();
+  document.getElementById('findingmeta')!.innerHTML = findingMeta();
   document.getElementById('tablist')!.innerHTML = tabsHtml();
   const panel = document.getElementById('panel')!;
   panel.setAttribute('aria-labelledby', `tab-${state.tab}`);
@@ -582,7 +593,7 @@ function viewResults() {
         <p class="meta" id="findingmeta">${findingMeta()}</p>
       </div>
       <div class="tune">
-        <button class="btn btn--small" data-act="tune" aria-expanded="${state.tuneOpen}" aria-controls="tunepanel">${icons.sliders} Sensitivity</button>
+        <button class="btn btn--ghost btn--small" data-act="tune" aria-expanded="${state.tuneOpen}" aria-controls="tunepanel">${icons.sliders} Sensitivity</button>
       </div>
     </div>
     <div class="tune-panel" id="tunepanel"${state.tuneOpen ? '' : ' hidden'}>
@@ -798,7 +809,7 @@ function decide(decision: Decision, how: 'mouse' | 'key') {
 
 function updateFindingMeta() {
   const meta = document.getElementById('findingmeta');
-  if (meta && state.analysis) meta.textContent = findingMeta();
+  if (meta && state.analysis) meta.innerHTML = findingMeta();
 }
 
 function viewAside() {

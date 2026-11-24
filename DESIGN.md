@@ -103,3 +103,11 @@ Reduced motion (`prefers-reduced-motion: reduce`): no sweep, no slides, no brack
 - The decision row moved above "Also in this case" so the primary action sits next to the evidence.
 - The finding sentence widened to two lines at desktop width so the first case and its decision row fit higher on the page.
 - At narrow widths the topbar note shortens to "Runs in this tab." and the mark rail stacks its two scales above the gap label.
+
+## Changes after the polish review
+
+- Case review: the two decisions are the screen's primary action, so each button carries its own ink (red border for "Needs re-mark", green for "Marks stand", a wash of the same colour on hover) and stands 48px tall. "Sensitivity" is a quiet ghost button. The pressed "Marks stand" bubble now fills green, not red.
+- Results: the printed timing track on the sheet edge fades to 18% so the case navigator is the only strong track on the page. The first tab sits on the sheet's left edge.
+- Load: the required columns are one printed header strip (grey seams on the second layer), and the drop area is a dashed well that stretches to the height of the copy beside it, with a cobalt hover and drag-over state. It no longer reads as a form to fill in.
+- Phone width: stacked grids use `minmax(0, 1fr)` (the reading screen had scrolled sideways); case content aligns with the finding; tabs scroll with a faded right edge; tables keep a readable width inside their scroll boxes; "Also in this case" lists each answer full width; primary action first and full width on the columns screen.
+- The facts under the finding sentence wrap between facts, never inside one.

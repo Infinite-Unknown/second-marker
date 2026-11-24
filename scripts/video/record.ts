@@ -86,17 +86,22 @@ let open: Scene | null = null;
 const dur = (f: string) => Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', f]).toString().trim());
 /** Starts a scene. The narration is synthesised first so the scene can be held until it is spoken. */
 function scene(name: string, say: string, opts: { caption?: string; speed?: number } = {}) {
+  // The scene starts before the narration is synthesised, so an animation already running is not cut.
+  const start = now();
   const aiff = join(work, `v-${name}.aiff`);
   execFileSync('say', ['-v', 'Samantha', '-r', '178', '-o', aiff, say]);
-  open = { name, start: now(), end: 0, say, ...opts, aiff, voice: dur(aiff) };
+  open = { name, start, end: 0, say, ...opts, aiff, voice: dur(aiff) };
   scenes.push(open);
 }
-/** Holds the current scene until its narration fits, then ends it (footage after this is not used). */
-async function done() {
+/**
+ * Holds the current scene until its narration fits, then ends it (footage after this is not used).
+ * hold: false ends it now; the assembler fits the footage to the narration instead.
+ */
+async function done({ hold = true } = {}) {
   if (!open) return;
   const need = (open.voice + 0.9) * (open.speed ?? 1);
   const left = need - (now() - open.start);
-  if (left > 0) await page.waitForTimeout(left * 1000);
+  if (hold && left > 0) await page.waitForTimeout(left * 1000);
   open.end = now();
   open = null;
 }
@@ -166,12 +171,13 @@ try {
 
   /* 4. Reading (first run: models download) */
   scene('reading', 'On the first run the two models download once. Every answer becomes a meaning vector, and each similar pair with different marks goes to a second model, which checks whether each answer implies the other. Nothing is uploaded. The page lists every request it makes.', {
-    caption: 'First run, including the one-time model download. Sped up',
+    caption: 'First run, including the one-time model download.',
     speed: 2,
   });
   await page.locator('.finding h1').waitFor({ timeout: 600000 });
 
-  await done();
+  // End the sped-up scene the moment results appear, so the arrival plays at real speed in the next scene.
+  await done({ hold: false });
 
   /* 5. Arrival */
   const nCases = Number(((await page.locator('.finding h1').innerText()).match(/(\d+) case/) ?? [])[1] ?? 0);
@@ -307,10 +313,10 @@ for (const [i, s] of scenes.entries()) {
   const voice = s.voice;
   // A sped-up scene (waiting on the model download) is fitted to its narration; the caption states the factor.
   const real = s.end - s.start;
-  const speed = s.speed ? Math.max(s.speed, real / (voice + 1.2)) : 1;
+  const speed = s.speed ? Math.max(1, real / (voice + 1.2)) : 1;
   const footage = real / speed;
   const length = Math.max(voice + 0.8, footage);
-  const capText = s.speed ? `${s.caption ?? ''} (${speed.toFixed(1)}x)` : (s.caption ?? '');
+  const capText = s.speed && speed > 1.05 ? `${s.caption ?? ''} Sped up ${speed.toFixed(1)}x.` : (s.caption ?? '');
   const capPng = join(work, `c${i}.png`);
   await cpage.setContent(`<html><head><style>
     @font-face { font-family: A; src: url(http://localhost:4319/a.woff2) format('woff2'); font-stretch: 62% 125%; font-weight: 100 900; }
